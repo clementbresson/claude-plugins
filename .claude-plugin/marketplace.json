@@ -1,0 +1,20 @@
+{
+  "name": "clementbresson",
+  "description": "Clément Bresson's personal Claude Code plugins",
+  "owner": {
+    "name": "Clément Bresson",
+    "url": "https://clementbresson.com"
+  },
+  "metadata": {
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "pr-flow",
+      "source": "./plugins/pr-flow",
+      "description": "Turns a pull request into a logical reading order: marks noise files as viewed, groups the rest by dependency order, writes a walkthrough into the PR description.",
+      "category": "code-review",
+      "tags": ["github", "code-review", "pull-request"]
+    }
+  ]
+}
