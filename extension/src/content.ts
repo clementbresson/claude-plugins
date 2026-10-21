@@ -1,4 +1,4 @@
-import { anchoredPlan, applyOrder } from './apply.ts';
+import { type AnchoredPlan, anchoredPlan, applyWalkthrough } from './apply.ts';
 import { parseData } from './data.ts';
 import { conversationPath, parsePullPath, type PullRef } from './github/route.ts';
 import { SEL } from './github/selectors.ts';
@@ -27,18 +27,19 @@ check();
 
 async function attach(target: NonNullable<typeof attached>, pull: PullRef): Promise<void> {
   const plan = await loadPlan(pull);
-  // No block, or the user navigated away while we were fetching.
+  // No data block, or the user navigated away while we were fetching.
   if (!plan || attached !== target) return;
 
-  applyOrder(target.list, plan);
+  applyWalkthrough(target.list, plan);
   // Entries that mount later (very large PRs) get their order as they arrive.
-  listObserver = new MutationObserver(debounce(() => applyOrder(target.list, plan), 50));
+  // Our own block insertions trigger one more pass, which changes nothing.
+  listObserver = new MutationObserver(debounce(() => applyWalkthrough(target.list, plan), 50));
   listObserver.observe(target.list, { childList: true });
 }
 
 // The data block lives in the description, which only the conversation page
 // renders. Same-origin fetch with the user's cookies; no API, no token.
-async function loadPlan(pull: PullRef): Promise<Map<string, number> | null> {
+async function loadPlan(pull: PullRef): Promise<AnchoredPlan | null> {
   try {
     const response = await fetch(conversationPath(pull), { credentials: 'same-origin' });
     if (!response.ok) return null;

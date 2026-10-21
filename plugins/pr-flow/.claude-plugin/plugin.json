@@ -1,7 +1,7 @@
 {
   "name": "pr-flow",
   "displayName": "PR Flow",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Read pull requests in a logical order instead of alphabetically",
   "author": {
     "name": "Clément Bresson",

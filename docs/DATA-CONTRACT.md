@@ -42,7 +42,9 @@ One line, inside the `<!-- pr-flow:start -->` / `<!-- pr-flow:end -->` block:
   | `&` | `&` |
 
   With these escapes, nothing in the JSON can close the attribute or the tag,
-  and the sanitizer has nothing to rewrite. Every JSON parser turns them back
+  and the sanitizer has nothing to rewrite. Never use HTML entities (`&#39;`)
+  instead: the rendered page decodes them, but raw-body readers see them
+  literally (seen on a real run, 2026-10-21). Every JSON parser turns them back
   into the original characters. Other non-ASCII characters (`«`, `é`) can stay
   as they are.
 

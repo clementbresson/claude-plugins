@@ -140,9 +140,19 @@ this template in step with it. The rules that matter when writing it:
   as the GraphQL `path`.
 - `name` and `explanation` are plain text, with no markdown and no number
   prefix.
-- The JSON goes on one line, with `'` `<` `>` `&` escaped as `'`
-  `<` `>` `&` (in Python, `json.dumps(..., ensure_ascii=False)`
-  and then those four replacements).
+- Never write the span by hand. Save the data as JSON and generate the line,
+  which puts it on one line and escapes `&` `<` `>` `'` as JSON unicode escapes
+  (never HTML entities such as `&#39;`):
+
+  ```bash
+  python3 - DATA.json <<'PY'
+  import json, sys
+  s = json.dumps(json.load(open(sys.argv[1])), ensure_ascii=False)
+  for char, escape in (("&", "\\u0026"), ("<", "\\u003c"), (">", "\\u003e"), ("'", "\\u0027")):
+      s = s.replace(char, escape)
+  print(f"<span title='pr-flow:data {s}'></span>")
+  PY
+  ```
 - It must be a `<span title='…'>`, never an HTML comment. GitHub strips comments
   from the rendered description, and the extension only sees the rendered page.
 
