@@ -124,15 +124,27 @@ lockfiles, generated output and renames — untick any on the Files changed tab.
 
 </details>
 
-<!-- pr-flow:data {"version":1,"groups":[{"name":"...","files":["..."],"explanation":"..."}],"noise":["..."]} -->
+<span title='pr-flow:data {"version": 1, "groups": [{"name": "...", "files": ["..."], "explanation": "..."}], "noise": ["..."]}'></span>
 <!-- pr-flow:end -->
 ```
 
 The task-list checkboxes are interactive in GitHub's rendered description, so
 progress persists with no state of our own.
 
-The `pr-flow:data` block is the contract for a future renderer. Emit it even
-though nothing reads it yet.
+The `<span>` line is the data block the pr-flow browser extension reads. Its
+full definition is `docs/DATA-CONTRACT.md` in the pr-flow repository, so keep
+this template in step with it. The rules that matter when writing it:
+
+- `groups` in reading order, each group's `files` in reading order, and
+  `noise` holding the files marked as viewed. Every path appears once, exactly
+  as the GraphQL `path`.
+- `name` and `explanation` are plain text, with no markdown and no number
+  prefix.
+- The JSON goes on one line, with `'` `<` `>` `&` escaped as `'`
+  `<` `>` `&` (in Python, `json.dumps(..., ensure_ascii=False)`
+  and then those four replacements).
+- It must be a `<span title='…'>`, never an HTML comment. GitHub strips comments
+  from the rendered description, and the extension only sees the rendered page.
 
 ## Re-runs
 
