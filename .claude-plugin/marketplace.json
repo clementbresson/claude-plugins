@@ -10,11 +10,11 @@
   },
   "plugins": [
     {
-      "name": "pr-flow",
-      "source": "./plugins/pr-flow",
-      "description": "Turns a pull request into a logical reading order: marks noise files as viewed, groups the rest by dependency order, writes a walkthrough into the PR description.",
+      "name": "clementbresson",
+      "source": "./plugins/clementbresson",
+      "description": "All my skills in one plugin. pr-review turns a pull request into a logical reading order inside GitHub; branch-tour walks through a finished branch as an interactive artifact.",
       "category": "code-review",
-      "tags": ["github", "code-review", "pull-request"]
+      "tags": ["github", "git", "code-review", "pull-request", "walkthrough"]
     }
   ]
 }

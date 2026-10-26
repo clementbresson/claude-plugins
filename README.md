@@ -1,10 +1,12 @@
 # claude-plugins
 
-Claude Code plugins I use across projects, published as the `clementbresson` marketplace.
+Claude Code skills I use across projects, shipped as one plugin, `clementbresson`,
+so every skill is called as `/clementbresson:<skill>`.
 
-| Plugin | What it does |
+| Skill | What it does |
 |---|---|
-| [`pr-flow`](#pr-flow) | Turns a pull request into a logical reading order |
+| [`/clementbresson:pr-review`](#pr-review) | Turns a pull request into a logical reading order |
+| [`/clementbresson:branch-tour`](#branch-tour) | Walks through a finished branch as an interactive page |
 
 ## Install
 
@@ -12,14 +14,14 @@ No clone needed — Claude Code fetches the marketplace straight from GitHub.
 
 ```bash
 claude plugin marketplace add clementbresson/claude-plugins
-claude plugin install pr-flow@clementbresson
+claude plugin install clementbresson@clementbresson
 ```
 
 Or from inside a Claude Code session:
 
 ```
 /plugin marketplace add clementbresson/claude-plugins
-/plugin install pr-flow@clementbresson
+/plugin install clementbresson@clementbresson
 ```
 
 Restart Claude Code afterwards so the skills load.
@@ -28,22 +30,22 @@ Restart Claude Code afterwards so the skills load.
 
 ```bash
 claude plugin marketplace update clementbresson
-claude plugin update pr-flow@clementbresson
+claude plugin update clementbresson@clementbresson
 ```
 
 ### Uninstall
 
 ```bash
-claude plugin uninstall pr-flow@clementbresson
+claude plugin uninstall clementbresson@clementbresson
 claude plugin marketplace remove clementbresson
 ```
 
 ---
 
-## pr-flow
+## pr-review
 
 GitHub lists a PR's changed files alphabetically, which has nothing to do with
-how the change should be read. `pr-flow` fixes that from inside GitHub itself:
+how the change should be read. `pr-review` fixes that from inside GitHub itself:
 
 1. **Hides the noise.** Lockfiles, generated output, snapshots, vendored code and
    pure renames are marked as *Viewed*, so GitHub collapses them natively.
@@ -73,7 +75,7 @@ this PR is too big, walk me through it
 Or call the skill directly. With no number it uses the PR of the current branch:
 
 ```
-/pr-flow:pr-review 123
+/clementbresson:pr-review 123
 ```
 
 ### What it changes on GitHub
@@ -87,17 +89,58 @@ Or call the skill directly. With no number it uses the PR of the current branch:
 
 ---
 
+## branch-tour
+
+Call it when the work on a branch is done. It builds a private claude.ai
+artifact that walks through **every** change on the branch the way a colleague
+would walk you through the PR:
+
+1. **Reading order.** Files are grouped into steps that each do one thing,
+   foundations first (types, domain, use cases, wiring, UI), then side changes
+   unrelated to the main story, then chores such as lockfiles.
+2. **Explained.** A summary of the whole branch, a description per step, an
+   optional note per file, and margin notes on the few regions that are hard
+   to read.
+3. **Interactive.** Every file shows its full diff with a *Seen* checkbox.
+   Seen files collapse, a progress bar tracks the rest, and `j` / `k` / `s`
+   move through the tour from the keyboard.
+
+The page is always the same template. The diff comes straight from git (merge
+base to working tree, so uncommitted and untracked files are included), and
+the build refuses a tour that leaves out or repeats a changed file. Claude only
+writes the order and the explanations.
+
+Re-running on the same branch updates the same artifact. Seen marks carry over
+for files whose diff has not changed since.
+
+### Requirements
+
+- Python 3 and git
+- Claude Code with artifacts enabled (claude.ai login)
+
+### Usage
+
+```
+/clementbresson:branch-tour            # compare with origin/HEAD, main or master
+/clementbresson:branch-tour develop    # compare with another base branch
+```
+
+---
+
 ## Local development
 
 ```bash
-claude plugin validate ./plugins/pr-flow
+claude plugin validate ./plugins/clementbresson
 claude plugin validate .
 claude plugin marketplace add ./
-claude plugin install pr-flow@clementbresson
+claude plugin install clementbresson@clementbresson
 ```
 
-Bump `version` in the plugin's `plugin.json` on each release — installed copies
-only update when it changes.
+A new skill goes in `plugins/clementbresson/skills/<name>/SKILL.md` and is
+called as `/clementbresson:<name>`.
+
+Bump `version` in `plugins/clementbresson/.claude-plugin/plugin.json` on each
+release — installed copies only update when it changes.
 
 ## License
 

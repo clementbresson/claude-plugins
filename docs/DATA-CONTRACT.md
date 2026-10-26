@@ -5,7 +5,7 @@ browser extension share. This file is its single definition.
 
 | Side | Where | What it does |
 |---|---|---|
-| Producer | `plugins/pr-flow/skills/pr-review/SKILL.md`, step 6 | writes the block into the PR description |
+| Producer | `plugins/clementbresson/skills/pr-review/SKILL.md`, step 6 | writes the block into the PR description |
 | Consumer | `extension/src/data.ts` | parses and validates it |
 
 Change this file first, then both sides, in the same commit.
