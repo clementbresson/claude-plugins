@@ -96,7 +96,8 @@ the page is a walkthrough, so flag nothing as a bug. Separate paragraphs with
 a blank line; `code` and `**bold**` are the only markup.
 
 **`note`** is an optional one-liner shown in the file header: what this file
-contributes to its group.
+contributes to its group. When most of a file's diff is re-indentation, say
+so: the page's **Hide whitespace** toggle shows only the real change.
 
 **`focus`** marks a hard region inside a diff with a margin note. Use it for
 logic a reader would otherwise have to stop and decode: a tricky algorithm, a

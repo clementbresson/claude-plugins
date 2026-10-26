@@ -25,6 +25,7 @@ ROLES = ("main", "side", "chore")
 MAX_LINES = 3000          # diff lines kept per file
 NOISE_MAX_LINES = 300     # diff lines kept for lockfiles and generated files
 COLLAPSE_OVER = 400       # changed lines above which a diff starts collapsed
+EXPAND_MAX_LINES = 5000   # files longer than this ship without their unchanged lines
 SIZE_WARN = 15 * 1024 * 1024
 
 NOISE_PATTERNS = [
@@ -100,7 +101,7 @@ def split_patches(patch_text):
     return chunks
 
 
-HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$")
+HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$")
 
 
 def parse_hunks(lines):
@@ -109,9 +110,10 @@ def parse_hunks(lines):
     for line in lines:
         m = HUNK_RE.match(line)
         if m:
-            old_no, new_no = int(m.group(1)), int(m.group(2))
-            hunk = {"oldStart": old_no, "newStart": new_no,
-                    "context": m.group(3).strip(), "lines": []}
+            old_no, new_no = int(m.group(1)), int(m.group(3))
+            hunk = {"oldStart": old_no, "oldLines": int(m.group(2) or 1),
+                    "newStart": new_no, "newLines": int(m.group(4) or 1),
+                    "context": m.group(5).strip(), "lines": []}
             hunks.append(hunk)
             continue
         if hunk is None:
@@ -148,12 +150,7 @@ def language(path):
     return LANGS.get(name.rsplit(".", 1)[-1], "") if "." in name else ""
 
 
-def build_file(status, old_path, path, patch_lines):
-    hunks, binary = parse_hunks(patch_lines)
-    additions = sum(1 for h in hunks for l in h["lines"] if l[0] == "add")
-    deletions = sum(1 for h in hunks for l in h["lines"] if l[0] == "del")
-    hint = noise_hint(path)
-    cap = NOISE_MAX_LINES if hint else MAX_LINES
+def cap_hunks(hunks, cap):
     kept, total, truncated = [], 0, False
     for h in hunks:
         if total >= cap:
@@ -165,6 +162,15 @@ def build_file(status, old_path, path, patch_lines):
             truncated = True
         kept.append(h)
         total += len(h["lines"])
+    return kept, truncated
+
+
+def build_file(status, old_path, path, patch_lines):
+    hunks, binary = parse_hunks(patch_lines)
+    additions = sum(1 for h in hunks for l in h["lines"] if l[0] == "add")
+    deletions = sum(1 for h in hunks for l in h["lines"] if l[0] == "del")
+    hint = noise_hint(path)
+    kept, truncated = cap_hunks(hunks, NOISE_MAX_LINES if hint else MAX_LINES)
     digest = hashlib.sha1(("\n".join(patch_lines)).encode()).hexdigest()[:16]
     return {
         "path": path,
@@ -182,6 +188,38 @@ def build_file(status, old_path, path, patch_lines):
     }
 
 
+def add_context(f, merge_base, root):
+    """Give a modified file what the page needs to hide whitespace and expand unchanged lines.
+
+    `hunksW` is the `git diff -w` view, set only when it differs from the plain diff.
+    `lines` is the whole new file, so the page can reveal the lines between hunks.
+    """
+    if f["status"] not in "MR" or f["binary"] or f["hint"] or not f["hunks"]:
+        return
+    paths = dict.fromkeys(":(top,literal)" + p for p in (f["oldPath"], f["path"]) if p)
+    chunks = split_patches(git("diff", "-w", "-M", "--no-color", "--no-ext-diff",
+                               merge_base, "--", *paths))
+    if len(chunks) <= 1:
+        ws_hunks, _ = parse_hunks(chunks[0]) if chunks else ([], False)
+        ws_hunks, ws_truncated = cap_hunks(ws_hunks, MAX_LINES)
+        if ws_hunks != f["hunks"] and not ws_truncated:
+            f["hunksW"] = ws_hunks
+
+    full = root / f["path"]
+    if f["truncated"] or full.is_symlink():
+        return
+    try:
+        lines = full.read_text(encoding="utf-8", errors="replace").split("\n")
+    except OSError:
+        return
+    if lines[-1] == "":
+        lines.pop()
+    last = f["hunks"][-1]
+    end = last["newStart"] + last["newLines"] - (1 if last["newLines"] else 0)
+    if len(lines) <= EXPAND_MAX_LINES and end <= len(lines):
+        f["lines"] = lines
+
+
 def collect(base_arg):
     if not git("rev-parse", "--is-inside-work-tree", ok=(0, 128)).strip() == "true":
         raise TourError("Not inside a git work tree.")
@@ -194,6 +232,9 @@ def collect(base_arg):
     if len(entries) != len(chunks):
         raise TourError(f"git listed {len(entries)} files but produced {len(chunks)} patches.")
     files = [build_file(s, old, new, chunk) for (s, old, new), chunk in zip(entries, chunks)]
+    root = Path(git("rev-parse", "--show-toplevel").strip())
+    for f in files:
+        add_context(f, merge_base, root)
 
     untracked = [p for p in git("ls-files", "--others", "--exclude-standard", "-z").split("\0") if p]
     for path in untracked:
@@ -209,7 +250,7 @@ def collect(base_arg):
         "base": base,
         "mergeBase": merge_base[:10],
         "head": git("rev-parse", "--short", "HEAD").strip(),
-        "repo": os.path.basename(git("rev-parse", "--show-toplevel").strip()),
+        "repo": root.name,
         "commits": commits,
         "uncommitted": dirty,
         "files": files,

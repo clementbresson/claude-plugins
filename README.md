@@ -103,7 +103,9 @@ would walk you through the PR:
    to read.
 3. **Interactive.** Every file shows its full diff with a *Seen* checkbox.
    Seen files collapse, a progress bar tracks the rest, and `j` / `k` / `s`
-   move through the tour from the keyboard.
+   move through the tour from the keyboard. As on GitHub, *Hide whitespace*
+   drops indentation-only changes, and the arrows between hunks show the
+   unchanged lines around them.
 
 The page is always the same template. The diff comes straight from git (merge
 base to working tree, so uncommitted and untracked files are included), and
