@@ -103,7 +103,8 @@ would walk you through the PR:
    to read.
 3. **Interactive.** Every file shows its full diff with a *Seen* checkbox.
    Seen files collapse, a progress bar tracks the rest, and `j` / `k` / `s`
-   move through the tour from the keyboard. As on GitHub, *Hide whitespace*
+   move through the tour from the keyboard. While you scroll, the current
+   step's number, title and first line stay pinned under the bar. As on GitHub, *Hide whitespace*
    drops indentation-only changes, and the arrows between hunks show the
    unchanged lines around them.
 
