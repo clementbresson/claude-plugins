@@ -30,6 +30,8 @@ const CONFIG_DEFAULTS = {
   framework: "auto", // "react" | "none" | "auto": wait for React hydration before acting
   cookies: true,
   onError: "abort", // or "continue"
+  // onCheckFail: "abort" in the take, "continue" on a dry run, unless set
+  // setup: async (demo) => {…}, // runs before the scenario, fast-forwarded: reset data and app limits
   env: [], // env var names the scenario needs, checked before anything starts
   capture: { quality: 70, everyNthFrame: 1 }, // 2 halves disk use but can drop the single repaint of a caption change
   video: {},
@@ -37,6 +39,14 @@ const CONFIG_DEFAULTS = {
 
 const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const mb = (bytes) => `${(bytes / 1e6).toFixed(bytes > 1e8 ? 0 : 1)} MB`;
+
+// Never overwrites an earlier video: name.webm, then name-2.webm, name-3.webm…
+function freePath(dir, name, ext) {
+  for (let i = 1; ; i++) {
+    const file = join(dir, `${name}${i > 1 ? `-${i}` : ""}.${ext}`);
+    if (!existsSync(file)) return file;
+  }
+}
 
 function defaultOutDir() {
   for (const dir of [join(homedir(), "Movies"), join(homedir(), "Videos")]) {
@@ -84,11 +94,11 @@ function pickSamples(capture) {
     ? capture.chapters.map((c, i) => {
       const end = capture.chapters[i + 1]?.t ?? capture.end;
       const hold = holds.findLast((h) => h.start >= c.t && h.start < end);
-      return { t: hold ? (hold.start + hold.end) / 2 : Math.min(end, c.t + 1500), label: c.title };
+      return { t: hold ? (hold.start + hold.end) / 2 : Math.min(end, c.t + 1500), label: c.title, section: i + 1 };
     })
     : Array.from({ length: 6 }, (_, i) => ({ t: (capture.end * (i + 0.5)) / 6, label: `at ${clock(capture.end * (i + 0.5) / 6)}` }));
   times.push({ t: capture.end, label: "end" });
-  return times.map(({ t, label }) => ({ label, frame: capture.frames.findLast((f) => f.t <= t) ?? capture.frames[0] }));
+  return times.map(({ t, label, section }) => ({ label, section, frame: capture.frames.findLast((f) => f.t <= t) ?? capture.frames[0] }));
 }
 
 async function main() {
@@ -163,7 +173,11 @@ async function main() {
   // ---- dry run or recording
   const dryRun = Boolean(values["dry-run"]);
   if (!dryRun) {
-    capture = await startCapture({ page, dir: framesDir, ...config.capture });
+    capture = await startCapture({
+      page, dir: framesDir, ...config.capture, expect: { width, height },
+      onResize: (size, off) => log(off ? `  ⚠ frames are now ${size.width}×${size.height}, not the ${width}×${height} viewport`
+        : `  frames are back to ${size.width}×${size.height}`),
+    });
     capture.setMode("ff");
     await page.setContent("<body style='margin:0;background:#fff'></body>");
     const size = await capture.firstFrameSize();
@@ -181,10 +195,15 @@ async function main() {
   let failure = null;
   const started = Date.now();
   try {
+    if (config.setup) {
+      log("setup");
+      await demo.fastForward(() => config.setup(demo));
+    }
     await scenario.default(demo);
   } catch (error) {
     failure = error;
   }
+  await demo.settle();
   const stopped = capture ? await capture.stop() : null;
   await closeQuietly(browser);
   const { checks, failures, sections } = demo.results();
@@ -201,7 +220,7 @@ async function main() {
   if (dryRun) {
     log(`dry run done in ${clock(Date.now() - started)}: ${sections} sections, ${failures.length} failed, ` +
       `checks ${passed}/${checks.length} passed`);
-    for (const c of checks.filter((x) => !x.ok)) log(`  ✗ §${c.section} ${c.name}`);
+    for (const c of checks.filter((x) => !x.ok)) log(`  ✗ §${c.section} ${c.name}${c.screenshot ? `  (${c.screenshot})` : ""}`);
     writeFileSync(join(workDir, "report.json"), JSON.stringify(report, null, 2));
     return failures.length ? 1 : passed < checks.length ? 3 : 0;
   }
@@ -211,16 +230,19 @@ async function main() {
   const samplesDir = join(workDir, "samples");
   rmSync(samplesDir, { recursive: true, force: true });
   mkdirSync(samplesDir);
-  const samples = pickSamples(captureData).map(({ label, frame }, i) => {
+  const samples = pickSamples(captureData).map(({ label, section, frame }, i) => {
     const file = join(samplesDir, `${String(i + 1).padStart(2, "0")}-${slug(label).slice(0, 40)}.jpg`);
     copyFileSync(join(framesDir, frame.file), file);
-    return file;
+    return { file, section };
   });
+  // Sections with a failure or a failed check: their samples are looked at first.
+  const flagged = new Set([...failures, ...checks.filter((c) => !c.ok)].map((x) => x.section));
+  const review = samples.filter((s) => flagged.has(s.section));
 
   const format = values.format === "auto" ? (ffmpegWorks() ? "mp4" : "webm") : values.format;
   const outDir = resolve(values.out ?? defaultOutDir());
   mkdirSync(outDir, { recursive: true });
-  const out = join(outDir, `${name}.${format}`);
+  const out = freePath(outDir, name, format);
   const result = await encode({
     framesDir, out, chromium, chrome: config.chrome, badge: config.badge, accent: config.accent, ...config.video,
   });
@@ -235,13 +257,19 @@ async function main() {
     `Chapters  ${result.chaptersFile}`,
     ...result.chapters.map((c) => `            ${clock(c.ms).padStart(5)}  ${c.title}`),
     `Checks    ${passed}/${checks.length} passed` + (failures.length ? `, ${failures.length} optional section(s) failed` : ""),
-    ...checks.filter((c) => !c.ok).map((c) => `            ✗ §${c.section} ${c.name}`),
+    ...checks.filter((c) => !c.ok).map((c) => `            ✗ §${c.section} ${c.name}${c.screenshot ? `  (${c.screenshot})` : ""}`),
+    ...failures.filter((f) => !f.check).map((f) => `            ✗ §${f.section} « ${f.title} »: ${f.message}  (${f.screenshot})`),
     `Frames    ${stopped.frames} frames, ${mb(stopped.bytes)} on disk — ` +
       (values["keep-frames"]
         ? `kept in ${framesDir}; re-encode with: node ${join(import.meta.dirname, "encode.mjs")} --work ${workDir} --out <file>`
         : "deleted"),
     `Samples   ${samplesDir} (${samples.length} frames to check)`,
+    ...(review.length ? [`Review    first: ${review.map((s) => basename(s.file)).join(", ")}`] : []),
   ];
+  const cropped = stopped.sizes.find((s) => s.width !== width || s.height !== height);
+  if (cropped) {
+    lines.push(`⚠ frames left the ${width}×${height} viewport from capture time ${clock(cropped.t)} (${cropped.width}×${cropped.height})`);
+  }
   if (result.probe.error) lines.push(`⚠ the video did not load in Chrome: ${result.probe.error}`);
   writeFileSync(join(workDir, "report.json"), JSON.stringify({ ...report, video: result, samples, frames: stopped }, null, 2));
   console.log("\n" + lines.join("\n"));

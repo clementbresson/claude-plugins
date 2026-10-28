@@ -23,9 +23,17 @@ Read what the feature changed (the branch diff or the PR), the app's routes,
 and the test accounts and seeds the project already has. Write the plan as a
 numbered list of sections: the happy path, then edge cases, settings on and
 off, other roles or locales. For each section, name what is on screen that
-**proves** the behaviour: a text, a badge, a state. For AI features, give test
-entities unmistakable instructions (« Start every answer with AGENT-ALPHA »)
-so the video itself shows which one answered.
+**proves** the behaviour: a text, a badge, a state, and the area it shows in.
+For AI features, give test entities unmistakable instructions (« Start every
+answer with AGENT-ALPHA ») so the video itself shows which one answered. When
+a section changes an instruction, the new marker is a different word that
+shares no prefix with the old one (ALPHA → BRAVO): a model reading the
+conversation history keeps answering with the old marker when the new one
+merely extends it (AGENT-ALPHA-V2).
+
+List the app limits each run spends: login rate limits, plan quotas, AI
+credits, emails sent. Every dry run and take spends them again, so plan their
+reset in `config.setup`, which runs before the scenario on every run.
 
 Show the plan to the user and wait for their go. Done when the user has
 approved the section list.
@@ -37,8 +45,9 @@ approved the section list.
    instances, and ask before stopping anything that is not the project's own.
    Run nothing heavy (type checks, tests, another browser) until the video is
    delivered.
-2. Start the app locally and reset its test data. Changes without a UI go
-   through SQL against the **local** database only (`config.db.command`).
+2. Start the app locally and reset its test data and the limits listed in
+   step 1. Changes without a UI go through SQL against the **local** database
+   only (`config.db.command`).
 3. Credentials come from environment variables listed in `config.env`. Each
    Bash call starts a fresh shell, so put them in a git-ignored file named by
    `config.envFile`, filled from the project's seed or example config, or ask
@@ -62,11 +71,17 @@ key. Write it to these rules:
   mouse or keyboard event, which Radix and shadcn pickers need.
 - **Every wait goes through a helper** (`waitFor`, `waitForNew`, `goto`,
   `fastForward`), so it is squeezed in the video. For an AI answer, use
-  `waitForNew` on the element that appears when a reply is complete.
+  `waitForNew` on the element that appears when a reply is complete, with
+  `failOn` set to the app's error state (a « Retry » button, an error toast),
+  so a failed answer ends the section at once.
 - **Proof as checks.** After each behaviour, `expectText` the marker that
-  proves it; checks are counted in the report.
+  proves it, with `within` set to the area the plan named (the conversation,
+  the dialog): a marker elsewhere on the page proves nothing.
 - **Off-camera work** (a second tab deleting something) goes in
-  `offCamera`, announced by a caption.
+  `offCamera`, announced by a caption. Open every other page through
+  `offCamera` or `newPage`: they keep the video's frames at full size.
+- **Data and limit resets** go in `config.setup`, or in a `demo.config.mjs`
+  next to the scenario when several scenarios share them.
 - A section that may legitimately fail gets `{ optional: true }`.
 
 Done when every approved section is in the scenario.
@@ -82,7 +97,9 @@ node S/run-scenario.mjs SCENARIO --dry-run
 also estimates the frames' disk use per minute. `--dry-run` runs every step at
 full speed without recording. Fix selectors and timing here, never during the
 take: a failing section prints its error and a screenshot path, so read the
-screenshot. Exit code 1 means a section failed, 3 means a check failed.
+screenshot, as every ✗ check has one. Exit code 1 means a section failed, 3
+means a check failed. The dry run shortens pauses but skips holds, so it is
+faster than the take; it is still a full run against the app's limits.
 
 If Playwright is not found, the error gives a one-line install of
 `playwright-core` into a cache folder (no browser download). Ask the user
@@ -99,7 +116,10 @@ node S/run-scenario.mjs SCENARIO [--name NAME] [--out DIR] [--format webm|mp4]
 Run it in the background: recording takes the real duration of the scenario,
 and WebM encoding takes about the video's length again. The video goes to
 `~/Movies/demo-videos/` (or `~/Videos`) unless `--out` says otherwise, with a
-`.chapters.txt` beside it. The frames are deleted after a successful encode;
+`.chapters.txt` beside it; an existing video of the same name is kept and
+the new one gets a `-2` suffix. In the take, a failed check fails its
+section, so a take that went wrong stops early (`onCheckFail: "continue"`
+records to the end instead). The frames are deleted after a successful encode;
 pass `--keep-frames` to re-encode later with other timing, without recording
 again (the report prints the `encode.mjs` command).
 
@@ -108,7 +128,10 @@ Done when the report prints `Video` with a length.
 ## Step 6 — Verify
 
 The report lists a `Samples` folder: one frame per section, taken during its
-last caption, plus the last frame. Look at every sample image and confirm
+last caption, plus the last frame. Start with the samples on its `Review`
+line (sections with a failure or a failed check) and their screenshots, and
+treat a `⚠ frames left the viewport` line as a failed take. Look at every
+sample image and confirm
 that the caption matches the section, the important UI is in frame and not
 cut off, and the proof the plan named is visible. Compare the measured
 length with the planned one.

@@ -123,7 +123,13 @@ function installOverlay({ accent, position }) {
   if (window.top !== window) return;
   const KEY = "__demoOverlay";
   const install = () => {
-    if (document.getElementById("demo-caption")) return;
+    if (document.getElementById("demo-overlay")) return;
+    // A closed shadow root keeps the overlay out of the app's styles and out of
+    // every locator: a check must never pass on the caption's own text.
+    const host = document.createElement("div");
+    host.id = "demo-overlay";
+    host.style.cssText = "all: initial";
+    const root = host.attachShadow({ mode: "closed" });
     const style = document.createElement("style");
     style.textContent = `
       #demo-caption { position: fixed; ${position === "bottom" ? "bottom: 18px" : "top: 14px"}; left: 50%;
@@ -139,12 +145,12 @@ function installOverlay({ accent, position }) {
         border-radius: 50%; background: color-mix(in srgb, ${accent} 25%, transparent); border: 2px solid ${accent};
         pointer-events: none; left: -100px; top: -100px; transition: transform .15s; }
       #demo-cursor.down { transform: scale(.6); background: color-mix(in srgb, ${accent} 55%, transparent); }`;
-    document.head.appendChild(style);
     const caption = document.createElement("div");
     caption.id = "demo-caption";
     const cursor = document.createElement("div");
     cursor.id = "demo-cursor";
-    document.body.append(caption, cursor);
+    root.append(style, caption, cursor);
+    document.body.append(host);
     const apply = (state) => {
       if (!state) return;
       caption.replaceChildren();
@@ -182,21 +188,26 @@ const COOKIE_REJECT =
   /^(reject|decline|refuse|deny)( all)?\b|only (necessary|essential)|(necessary|essential) only|refuser|tout refuser|alles weigeren|weigeren|ablehnen|rechazar/i;
 
 export class SectionError extends Error {}
+export class CheckError extends SectionError {}
 
-// Everything a scenario receives. `capture` is null on a dry run, where every
-// pause and hold is skipped so the scenario runs at full speed.
+// Everything a scenario receives. `capture` is null on a dry run, where holds
+// are skipped and pauses shrink to a short settle: skipping them too lets a
+// check read a page that is still redirecting, a race the take never has.
 export async function createDemo({ context, page, config, capture, dryRun, workDir }) {
   const state = { caption: null, cursor: null };
   const checks = [];
   const failures = [];
+  const screenshots = [];
   const modes = ["normal"];
   let section = 0;
   const base = config.baseURL;
+  // A failed check in the take means the video shows the wrong thing: stop early.
+  const onCheckFail = config.onCheckFail ?? (dryRun ? "continue" : "abort");
 
   await context.exposeBinding("__demoState", () => state);
   await context.addInitScript(installOverlay, { accent: config.accent, position: config.captionPosition });
 
-  const pause = (ms) => (dryRun ? Promise.resolve() : sleep(ms));
+  const pause = (ms) => sleep(dryRun ? Math.min(ms, 250) : ms);
   const withMode = async (mode, work) => {
     modes.push(mode);
     capture?.setMode(mode);
@@ -208,7 +219,8 @@ export async function createDemo({ context, page, config, capture, dryRun, workD
     }
   };
   const locate = (target, on = page) => (typeof target === "string" ? on.locator(target) : target);
-  const push = () => page.evaluate((s) => window.__demoApply?.(s), state).catch(() => {});
+  const byText = (text, within) => (within ? locate(within) : page).getByText(text);
+  const push =() => page.evaluate((s) => window.__demoApply?.(s), state).catch(() => {});
 
   // React apps render forms before they work: acting before hydration submits
   // them natively (once, a password ended up in the URL). Wait for React's
@@ -256,6 +268,25 @@ export async function createDemo({ context, page, config, capture, dryRun, workD
     await withMode("ff", () => loc.waitFor({ state: "visible", timeout }));
   }
 
+  // True once any match is visible. Unlike locator.waitFor, several matches are
+  // fine, and hidden copies are skipped (Radix keeps a hidden native <select>
+  // beside its picker, so .first() would wait on an element nobody sees).
+  async function anyVisible(loc, timeout) {
+    for (const end = Date.now() + timeout; ; await sleep(200)) {
+      const count = Math.min(await loc.count().catch(() => 0), 50);
+      for (let i = 0; i < count; i++) {
+        if (await loc.nth(i).isVisible().catch(() => false)) return true;
+      }
+      if (Date.now() >= end) return false;
+    }
+  }
+
+  // A page outside the video, in its own browser context with the main one's
+  // cookies and localStorage. A second tab in the main context shrinks its
+  // screencast frames (1440×813 for a 1440×900 viewport) for the rest of the take.
+  const sideContext = async () =>
+    context.browser().newContext({ locale: config.locale, ...config.context, storageState: await context.storageState() });
+
   const demo = {
     page,
     context,
@@ -266,18 +297,27 @@ export async function createDemo({ context, page, config, capture, dryRun, workD
 
     // A numbered chapter. A failure stops the run, unless the section is optional
     // or the config says onError: "continue"; a screenshot is kept either way.
+    // Frames that stop matching the viewport fail the section: the rest would be cropped.
     async section(title, work, { optional = false } = {}) {
       section += 1;
       capture?.chapter(`${section}. ${title}`);
       log(`§${section} ${title}`);
       try {
         await work();
+        const size = capture?.mismatch();
+        if (size) {
+          const { width, height } = config.viewport;
+          throw new Error(`frames are ${size.width}×${size.height}, not the ${width}×${height} viewport: the video is cropped from here on`);
+        }
       } catch (error) {
-        const screenshot = join(workDir, `error-section-${section}.png`);
-        await page.screenshot({ path: screenshot }).catch(() => {});
-        failures.push({ section, title, message: firstLine(error.message), screenshot });
+        let screenshot = checks.at(-1)?.screenshot;
+        if (!(error instanceof CheckError)) {
+          screenshot = join(workDir, `error-section-${section}.png`);
+          await page.screenshot({ path: screenshot }).catch(() => {});
+        }
+        failures.push({ section, title, message: firstLine(error.message), screenshot, check: error instanceof CheckError });
         log(`  ✗ §${section} failed: ${firstLine(error.message)}`);
-        log(`    screenshot: ${screenshot}`);
+        if (!(error instanceof CheckError)) log(`    screenshot: ${screenshot}`);
         if (!optional && config.onError !== "continue") {
           throw new SectionError(`Section ${section} « ${title} » failed: ${firstLine(error.message)}`);
         }
@@ -360,11 +400,15 @@ export async function createDemo({ context, page, config, capture, dryRun, workD
     moveTo,
     ready,
 
-    // Waits for a locator, a text, or an async function; squeezed in the video.
-    async waitFor(target, { timeout = 60_000, ff = true, optional = false } = {}) {
-      const work = typeof target === "function"
-        ? target
-        : () => (typeof target === "string" ? page.getByText(target).first() : target).waitFor({ state: "visible", timeout });
+    // Waits for a locator, a text (in `within` when given), or an async function;
+    // squeezed in the video.
+    async waitFor(target, { timeout = 60_000, ff = true, optional = false, within } = {}) {
+      const work = typeof target === "function" ? target : async () => {
+        const loc = typeof target === "string" ? byText(target, within) : target;
+        if (!(await anyVisible(loc, timeout))) {
+          throw new Error(`nothing visible after ${timeout / 1000} s: ${typeof target === "string" ? `« ${target} »` : loc}`);
+        }
+      };
       try {
         await (ff ? withMode("ff", work) : work());
         return true;
@@ -375,30 +419,45 @@ export async function createDemo({ context, page, config, capture, dryRun, workD
       }
     },
     // Runs `action`, then waits until `target` matches more elements than before,
-    // e.g. one more « Copy » button once an AI answer has finished. Never throws on timeout.
-    async waitForNew(target, action, { timeout = 120_000 } = {}) {
+    // e.g. one more « Copy » button once an AI answer has finished. Logs and
+    // continues on timeout. `failOn` (a locator, or a text) is the app's error
+    // state: when it gains a match, the wait throws at once instead of timing out.
+    async waitForNew(target, action, { timeout = 120_000, failOn } = {}) {
       const loc = locate(target);
+      const fail = typeof failOn === "string" ? page.getByText(failOn) : failOn;
       const before = await loc.count();
+      const failsBefore = fail ? await fail.count() : 0;
       await action();
-      const ok = await withMode("ff", async () => {
+      const outcome = await withMode("ff", async () => {
         for (const end = Date.now() + timeout; Date.now() < end; await sleep(400)) {
-          if ((await loc.count()) > before) return true;
+          if ((await loc.count()) > before) return "new";
+          if (fail && (await fail.count()) > failsBefore) return "failed";
         }
-        return false;
+        return "timeout";
       });
-      if (!ok) log(`  ⚠ nothing new after ${timeout / 1000} s, continuing`);
-      return ok;
+      if (outcome === "failed") throw new Error(`the app showed its error state (failOn: ${typeof failOn === "string" ? `« ${failOn} »` : failOn})`);
+      if (outcome === "timeout") log(`  ⚠ nothing new after ${timeout / 1000} s, continuing`);
+      return outcome === "new";
     },
 
-    // Records whether a text proving the behaviour is on screen. Never throws.
-    async expectText(text, { timeout = 5000 } = {}) {
-      const ok = await page.getByText(text).first().waitFor({ state: "visible", timeout }).then(() => true, () => false);
-      return demo.check(`text « ${text} »`, ok);
+    // Records whether a text proving the behaviour is visible, in `within` when
+    // given (scope it to where the proof lives, e.g. the conversation).
+    async expectText(text, { timeout = 5000, within } = {}) {
+      const ok = await withMode("ff", () => anyVisible(byText(text, within), timeout));
+      return demo.check(`text « ${text} »${within ? ` in ${typeof within === "string" ? within : "scope"}` : ""}`, ok);
     },
+    // A failed check gets a screenshot; in the take it also fails its section
+    // (config.onCheckFail: "continue" keeps going), on a dry run it never throws.
     check(name, ok) {
-      checks.push({ section, name, ok: Boolean(ok) });
-      log(`  ${ok ? "✓" : "✗"} ${name}`);
-      return Boolean(ok);
+      const entry = { section, name, ok: Boolean(ok) };
+      checks.push(entry);
+      log(`  ${entry.ok ? "✓" : "✗"} ${name}`);
+      if (entry.ok) return true;
+      entry.screenshot = join(workDir, `check-${checks.length}.png`);
+      log(`    screenshot: ${entry.screenshot}`);
+      screenshots.push(page.screenshot({ path: entry.screenshot }).catch(() => delete entry.screenshot));
+      if (onCheckFail === "abort") throw new CheckError(`check failed: ${name}`);
+      return false;
     },
 
     // Generic form login: waits for hydration, fills the email, the password from
@@ -451,18 +510,25 @@ export async function createDemo({ context, page, config, capture, dryRun, workD
       return execSync(config.db.command, { input: query, stdio: ["pipe", "pipe", "inherit"] }).toString().trim();
     },
 
-    // A tab the video does not show; say what happens there in a caption.
-    newPage: () => context.newPage(),
+    // Pages the video does not show (see sideContext); say what happens there in a caption.
+    async newPage() {
+      const side = await sideContext();
+      const other = await side.newPage();
+      other.once("close", () => side.close().catch(() => {}));
+      return other;
+    },
     async offCamera(work) {
-      const other = await context.newPage();
+      const side = await sideContext();
       try {
-        return await withMode("ff", () => work(other));
+        return await withMode("ff", async () => work(await side.newPage()));
       } finally {
-        await other.close().catch(() => {});
-        await page.bringToFront();
+        await side.close().catch(() => {});
+        await page.bringToFront().catch(() => {});
       }
     },
 
+    // Waits for the screenshots of failed checks; call before closing the browser.
+    settle: () => Promise.all(screenshots),
     results: () => ({ checks, failures, sections: section }),
   };
   return demo;

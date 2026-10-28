@@ -4,14 +4,17 @@ import { join } from "node:path";
 // Records a page as JPEG frames through the Chrome DevTools screencast, each with
 // a timestamp. Timed marks tell the encoder how to play each stretch:
 //   "normal" sped up to a quick human pace, "ff" squeezed (waits), "hold" real time (captions).
-// Chapters record where each section starts.
-export async function startCapture({ page, dir, quality = 70, everyNthFrame = 1 }) {
+// Chapters record where each section starts. With `expect` (the viewport), every
+// frame's size is compared to it and `onResize` hears of each change.
+export async function startCapture({ page, dir, quality = 70, everyNthFrame = 1, expect, onResize }) {
   rmSync(dir, { force: true, recursive: true });
   mkdirSync(dir, { recursive: true });
   const t0 = Date.now();
   const frames = [];
   const marks = [{ t: 0, mode: "normal" }];
   const chapters = [];
+  const sizes = []; // { t, width, height } at each change of frame size
+  const off = (size) => Boolean(expect && size && (size.width !== expect.width || size.height !== expect.height));
   let bytes = 0;
   let resolveFirst;
   const first = new Promise((resolve) => (resolveFirst = resolve));
@@ -21,8 +24,15 @@ export async function startCapture({ page, dir, quality = 70, everyNthFrame = 1 
     const file = `${String(frames.length).padStart(6, "0")}.jpg`;
     writeFileSync(join(dir, file), buffer);
     bytes += buffer.length;
-    frames.push({ file, t: Date.now() - t0 });
-    if (frames.length === 1) resolveFirst(jpegSize(buffer));
+    const t = Date.now() - t0;
+    frames.push({ file, t });
+    const size = jpegSize(buffer);
+    const last = sizes.at(-1);
+    if (size && (!last || last.width !== size.width || last.height !== size.height)) {
+      sizes.push({ t, ...size });
+      if (last) onResize?.(size, off(size));
+    }
+    if (frames.length === 1) resolveFirst(size);
     session.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
   });
   await session.send("Page.startScreencast", { format: "jpeg", quality, everyNthFrame });
@@ -59,12 +69,14 @@ export async function startCapture({ page, dir, quality = 70, everyNthFrame = 1 
     },
     chapter: (title) => chapters.push({ t: Date.now() - t0, title }),
     bytes: () => bytes,
+    // The current frame size when it differs from `expect`, else null.
+    mismatch: () => (off(sizes.at(-1)) ? sizes.at(-1) : null),
     stop: async () => {
       await session.send("Page.stopScreencast").catch(() => {});
       const end = Date.now() - t0;
       writeFileSync(join(dir, "capture.json"), JSON.stringify({ frames, marks, chapters, end }));
       await session.detach().catch(() => {});
-      return { frames: frames.length, bytes, end };
+      return { frames: frames.length, bytes, end, sizes };
     },
   };
 }

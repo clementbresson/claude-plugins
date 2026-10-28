@@ -16,6 +16,8 @@ export const config = {
   // captionPosition: "top", // or "bottom" when the app's header matters more than its footer
   // accent: "#9333ea", // caption step pill, cursor and badge color
   // onError: "abort", // or "continue": a failing section is logged and the take goes on
+  // onCheckFail: "abort", // in the take a failed check fails its section; "continue" only logs it (dry-run default)
+  // setup: async (demo) => demo.sql(`delete from "LoginAttempt"`), // before the scenario, every run: reset data and app limits
   // video: { speedup: 1.7, maxWait: 1500, maxStill: 2000, width: 1280, bitrate: 1500000 },
   // capture: { quality: 70 }, // JPEG quality of the frames; lower saves disk
 };
@@ -39,13 +41,14 @@ export default async function scenario(demo) {
 
   await demo.section("Ask the assistant", async () => {
     await demo.goto("/assistant", "textarea");
-    // Wait for an AI answer: one more « Copy » button once it has finished. The wait is fast-forwarded.
+    // Wait for an AI answer: one more « Copy » button once it has finished. The wait is fast-forwarded,
+    // and the app's error state (« Retry ») ends it at once instead of waiting out the timeout.
     await demo.waitForNew(page.getByRole("button", { name: "Copy" }), async () => {
       await demo.typeInto(page.locator("textarea"), "Which invoices are overdue?");
       await demo.press("Enter");
-    });
-    // Prove the behaviour on screen, and record it as a check.
-    await demo.expectText("INV-2041");
+    }, { failOn: page.getByRole("button", { name: "Retry" }) });
+    // Prove the behaviour on screen, where it lives, and record it as a check.
+    await demo.expectText("INV-2041", { within: "[role=log]" });
     await demo.caption("The assistant lists the overdue invoice", "INV-2041, due 12 days ago");
   });
 
@@ -78,10 +81,14 @@ export default async function scenario(demo) {
 //   clearCaption()  hold(ms)  pause(ms)    real-time hold vs. normal (sped-up) pause
 //   goto(path, readySelector?)             navigate, wait for readiness and hydration, reject cookies
 //   click(t)  typeInto(t, text)  typeSecret(t, ENV)  hover(t, ms)  press(key)  scroll(dy)  moveTo(t)
-//   waitFor(t | text | async fn, { timeout, optional })   fast-forwarded wait
-//   waitForNew(t, action, { timeout })     action, then wait until t matches more elements
+//   waitFor(t | text | async fn, { timeout, optional, within })   fast-forwarded wait for a visible match
+//   waitForNew(t, action, { timeout, failOn })   action, then wait until t matches more elements;
+//                                          throws as soon as failOn (locator or text) matches more
 //   fastForward(async fn)                  squeeze any wait
-//   expectText(text)  check(name, ok)      record proof on screen; never throws
+//   expectText(text, { within })  check(name, ok)   proof on screen: visible matches only, never the caption;
+//                                          a ✗ gets a screenshot and, in the take, fails its section
 //   login({ url, email, passwordEnv, emailField, passwordField, submit, until })
-//   dismissCookies()  sql(query)  offCamera(async (page) => …)  newPage()  ready(t)  url(path)
+//   dismissCookies()  sql(query)  ready(t)  url(path)
+//   offCamera(async (page) => …)  newPage()   pages outside the video, in their own context with the same
+//                                          cookies; open every other page through these
 //   page, context, config, dryRun, log
