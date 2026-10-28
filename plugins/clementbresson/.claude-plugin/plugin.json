@@ -1,13 +1,13 @@
 {
   "name": "clementbresson",
   "displayName": "Clément Bresson",
-  "version": "0.5.0",
-  "description": "Clément Bresson's skills: PR reading order (pr-review) and finished-branch walkthroughs (branch-tour)",
+  "version": "0.6.0",
+  "description": "Clément Bresson's skills: PR reading order (pr-review), finished-branch walkthroughs (branch-tour) and demo videos of a local web app (demo-video)",
   "author": {
     "name": "Clément Bresson",
     "url": "https://clementbresson.com"
   },
   "repository": "https://github.com/clementbresson/claude-plugins",
   "license": "MIT",
-  "keywords": ["github", "git", "code-review", "pull-request", "diff", "walkthrough", "artifact"]
+  "keywords": ["github", "git", "code-review", "pull-request", "diff", "walkthrough", "artifact", "demo", "video", "playwright"]
 }

@@ -7,6 +7,7 @@ so every skill is called as `/clementbresson:<skill>`.
 |---|---|
 | [`/clementbresson:pr-review`](#pr-review) | Turns a pull request into a logical reading order |
 | [`/clementbresson:branch-tour`](#branch-tour) | Walks through a finished branch as an interactive page |
+| [`/clementbresson:demo-video`](#demo-video) | Records a captioned demo video of a local web app |
 
 ## Install
 
@@ -126,6 +127,37 @@ for files whose diff has not changed since.
 ```
 /clementbresson:branch-tour            # compare with origin/HEAD, main or master
 /clementbresson:branch-tour develop    # compare with another base branch
+```
+
+---
+
+## demo-video
+
+Ask for « a demo video of feature X ». Claude plans the story with you, writes
+a scenario (plain JavaScript, one section per part of the story), and records
+it in a headless Chrome on your local instance:
+
+1. **Captions and a cursor.** Each step gets a numbered caption held long
+   enough to read, and a visible cursor shows every click. Both survive page
+   loads, even across origins.
+2. **Fast-forwarded waits.** AI answers and page loads are squeezed to 1.5 s
+   or less under a « ⏩ » badge; the rest plays at a quick human pace.
+3. **No encoder to install.** Chrome records the video itself (WebM). When
+   `ffmpeg` works, it writes an MP4 with chapters instead.
+4. **Checked before and after.** A dry run must pass before the real take.
+   Afterwards, one sample frame per section is checked and a chapter list
+   is written next to the video.
+
+### Requirements
+
+- Google Chrome, Node 20+
+- Playwright in the project, or `npm install --prefix ~/.cache/demo-video playwright-core`
+  (no browser download: the system Chrome is used)
+
+### Usage
+
+```
+/clementbresson:demo-video invoice reminders
 ```
 
 ---
