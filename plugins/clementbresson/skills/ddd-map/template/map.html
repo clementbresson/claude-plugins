@@ -1,0 +1,811 @@
+<title>__MAP_TITLE__</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: an atlas. A sticky bar carries the breadcrumb and search; a browse rail (domain → contexts →
+   aggregates) sits left on wide screens; the main column shows one level at a time, top-down.
+   Subdomain types keep one color everywhere: core warm, supporting blue, generic slate. */
+:root {
+  --bg: #f2f4f6;
+  --surface: #ffffff;
+  --sunken: #e8ecf0;
+  --fg: #172029;
+  --muted: #586473;
+  --line: #d6dde5;
+  --accent: #0d6b66;
+  --accent-soft: #dcefed;
+  --core: #c2410c;
+  --core-soft: #fbe7dc;
+  --supporting: #2856b8;
+  --supporting-soft: #e0e8f8;
+  --generic: #5f6b7a;
+  --generic-soft: #e6e9ee;
+  --external: #8a5a00;
+  --external-soft: #f5ead2;
+  --outside: #8a94a3;
+  --outside-soft: #eceff3;
+  --entity: #0d6b66;
+  --vo: #6b46c1;
+  --event: #b45309;
+  --command: #15803d;
+  --query: #2856b8;
+  --service: #5f6b7a;
+  --warn: #b45309;
+  --risk: #b42318;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1418; --surface: #161c22; --sunken: #1d252d; --fg: #e2e8ee; --muted: #93a0ae; --line: #2a343e;
+    --accent: #5cc9c0; --accent-soft: #173533; --core: #f08a5a; --core-soft: #3a2117; --supporting: #86a8f0;
+    --supporting-soft: #1c2740; --generic: #a5b0bd; --generic-soft: #242c35; --external: #e0b45c; --external-soft: #33290f;
+    --outside: #6f7a88; --outside-soft: #20272f; --entity: #5cc9c0; --vo: #b49bf2; --event: #f0b25c; --command: #6fd28f; --query: #86a8f0; --service: #a5b0bd;
+    --warn: #f0b25c; --risk: #ff8a80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1418; --surface: #161c22; --sunken: #1d252d; --fg: #e2e8ee; --muted: #93a0ae; --line: #2a343e;
+  --accent: #5cc9c0; --accent-soft: #173533; --core: #f08a5a; --core-soft: #3a2117; --supporting: #86a8f0;
+  --supporting-soft: #1c2740; --generic: #a5b0bd; --generic-soft: #242c35; --external: #e0b45c; --external-soft: #33290f;
+  --outside: #6f7a88; --outside-soft: #20272f; --entity: #5cc9c0; --vo: #b49bf2; --event: #f0b25c; --command: #6fd28f; --query: #86a8f0; --service: #a5b0bd;
+  --warn: #f0b25c; --risk: #ff8a80; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font: 15px/1.6 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+button, input { font: inherit; color: inherit; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code { font-family: var(--font-mono); font-size: .85em; background: var(--sunken); padding: .1em .35em; border-radius: 4px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: clamp(26px, 4vw, 36px); font-weight: 700; }
+h2 { font-size: 20px; font-weight: 700; }
+h3 { font-size: 16px; font-weight: 600; font-family: var(--font-body); }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.prose { display: grid; gap: 10px; max-width: 72ch; }
+
+/* ---------- bar ---------- */
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px))) calc(-1 * max(16px, env(safe-area-inset-right, 0px)));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.bar-inner { max-width: 1440px; margin: 0 auto; min-height: 54px; display: flex; align-items: center; gap: 12px; padding-block: 8px; flex-wrap: wrap; }
+.brand { font: 700 15px/1.2 var(--font-display); text-decoration: none; color: var(--fg); white-space: nowrap; }
+.crumbs { flex: 1 1 260px; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 14px; overflow: hidden; white-space: nowrap; }
+.crumbs a { color: var(--muted); text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
+.crumbs a:hover { color: var(--fg); text-decoration: underline; }
+.crumbs a:last-child { color: var(--fg); font-weight: 600; }
+.crumbs .sep { color: var(--line); flex: none; }
+.search { position: relative; flex: 0 1 300px; min-width: 180px; }
+.search input { width: 100%; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 6px 10px 6px 30px; font-size: 14px; }
+.search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.results {
+  position: absolute; top: calc(100% + 6px); right: 0; width: min(440px, calc(100vw - 32px)); max-height: 60vh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 12px 32px rgb(0 0 0 / .14); padding: 6px; z-index: 6;
+}
+.result { display: flex; gap: 10px; align-items: baseline; padding: 7px 9px; border-radius: 7px; text-decoration: none; color: var(--fg); }
+.result[aria-selected="true"], .result:hover { background: var(--sunken); }
+.result .where { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.browse-toggle { display: none; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 10px; font-size: 14px; cursor: pointer; }
+
+/* ---------- page ---------- */
+.page { max-width: 1440px; margin: 0 auto; padding-block: 28px 80px; display: grid; gap: 32px; }
+@media (min-width: 1040px) {
+  .page { grid-template-columns: 260px minmax(0, 1fr); }
+  .rail { position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow-y: auto; }
+}
+@media (max-width: 1039px) {
+  .browse-toggle { display: inline-block; }
+  .rail { display: none; }
+  .rail.open { display: block; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 12px; }
+}
+.rail { font-size: 14px; }
+.rail-group { display: grid; gap: 1px; margin-bottom: 14px; }
+.rail-label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px 8px; }
+.rail a { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; color: var(--fg); text-decoration: none; min-width: 0; }
+.rail a span.n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail a:hover { background: var(--sunken); }
+.rail a[aria-current="page"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.rail .sub { padding-left: 22px; font-size: 13px; color: var(--muted); }
+.main { min-width: 0; display: grid; gap: 28px; align-content: start; }
+
+/* ---------- shared pieces ---------- */
+.eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.head { display: grid; gap: 10px; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.facts b { color: var(--fg); font-weight: 600; }
+.section { display: grid; gap: 14px; }
+.section > *, .main > * { min-width: 0; }
+.section-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.section-head .count { color: var(--muted); font-size: 14px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+  padding: 2px 10px; font-size: 13px; text-decoration: none; color: var(--fg); white-space: nowrap; max-width: 100%;
+}
+a.chip:hover { border-color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--generic); }
+.t-core { --t: var(--core); --t-soft: var(--core-soft); }
+.t-supporting { --t: var(--supporting); --t-soft: var(--supporting-soft); }
+.t-generic { --t: var(--generic); --t-soft: var(--generic-soft); }
+.t-external { --t: var(--external); --t-soft: var(--external-soft); }
+.t-outside { --t: var(--outside); --t-soft: var(--outside-soft); }
+.dot.t-core, .dot.t-supporting, .dot.t-generic, .dot.t-external, .dot.t-outside { background: var(--t); }
+.type-pill { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 1px 8px; border-radius: 999px; background: var(--t-soft); color: var(--t); }
+.kind {
+  display: inline-block; font: 600 10.5px/1.6 var(--font-mono); letter-spacing: .02em; padding: 0 6px; border-radius: 4px;
+  border: 1px solid currentColor; white-space: nowrap; flex: none;
+}
+.k-entity, .k-root, .k-aggregate { color: var(--entity); }
+.k-value-object { color: var(--vo); }
+.k-event { color: var(--event); }
+.k-command { color: var(--command); }
+.k-query { color: var(--query); }
+.k-service, .k-context, .k-subdomain, .k-term { color: var(--service); }
+.inferred { font-size: 11px; color: var(--muted); border: 1px dashed var(--line); border-radius: 4px; padding: 0 6px; }
+.code-ref { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; }
+.code-ref a, .code-ref span.path { font: 12.5px/1.5 var(--font-mono); color: var(--muted); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-ref a:hover { color: var(--accent); text-decoration: underline; }
+.copy { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 12px; }
+.copy:hover { background: var(--sunken); color: var(--fg); }
+.empty { color: var(--muted); font-size: 14px; }
+
+/* ---------- overview ---------- */
+.domain-hero { display: grid; gap: 14px; padding-bottom: 6px; }
+.sources { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+.sub-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); align-items: start; }
+.sub-col { display: grid; gap: 10px; align-content: start; }
+.sub-col > header { display: flex; align-items: center; gap: 8px; }
+.sub-card { display: grid; gap: 8px; padding: 12px 14px; border-left: 3px solid var(--t); text-decoration: none; color: var(--fg); }
+.sub-card:hover { border-color: var(--line); border-left-color: var(--t); box-shadow: 0 2px 10px rgb(0 0 0 / .06); }
+.sub-card .desc { font-size: 14px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ctx-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+.ctx-card { display: grid; gap: 8px; padding: 14px; text-decoration: none; color: var(--fg); align-content: start; }
+.ctx-card:hover { box-shadow: 0 2px 12px rgb(0 0 0 / .07); }
+.ctx-card h3 { font-family: var(--font-display); font-size: 17px; }
+.ctx-card .desc { font-size: 14px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ctx-card .facts { font-size: 13px; }
+
+/* ---------- context map ---------- */
+.map-wrap { overflow-x: auto; padding: 8px; }
+.map-wrap svg { display: block; height: auto; margin: 0 auto; }
+.map-node { cursor: pointer; }
+.map-node rect.box { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+.map-node.outside rect.box { stroke-dasharray: 4 3; fill: var(--bg); }
+.map-node.outside text { fill: var(--muted); }
+.map-node:hover rect.box, .map-node.focus rect.box { stroke: var(--accent); stroke-width: 2; }
+.map-node text { fill: var(--fg); font: 600 13px var(--font-body); }
+.map-node text.sub { fill: var(--muted); font: 400 11px var(--font-body); }
+.map-edge { cursor: pointer; }
+.map-edge line.vis { stroke: var(--muted); stroke-width: 1.4; }
+.map-edge.weak line.vis { stroke-dasharray: 5 4; }
+.map-edge line.hit { stroke: transparent; stroke-width: 14; }
+.map-edge:hover line.vis, .map-edge.lit line.vis { stroke: var(--accent); stroke-width: 2.2; }
+.map-edge rect.lbl { fill: var(--surface); stroke: var(--line); }
+.map-edge text { fill: var(--fg); font: 600 10px var(--font-mono); }
+.map.busy .map-edge:not(.lit):not(:hover) .lbl, .map.busy .map-edge:not(.lit):not(:hover) text { display: none; }
+.map-tools { display: flex; justify-content: flex-end; gap: 8px; font-size: 13px; color: var(--muted); padding: 10px 14px 0; }
+.map-tools label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.map svg.dim .map-edge:not(.lit) { opacity: .25; }
+.map svg.dim .map-node:not(.lit) { opacity: .45; }
+.arrow { fill: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); padding: 10px 14px 12px; border-top: 1px solid var(--line); }
+.legend b { color: var(--fg); font-family: var(--font-mono); font-size: 11.5px; }
+
+/* ---------- lists ---------- */
+.rows { display: grid; }
+.row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; padding: 11px 14px; border-top: 1px solid var(--line); text-decoration: none; color: var(--fg); align-items: baseline; }
+.row:first-child { border-top: 0; }
+a.row:hover { background: var(--sunken); }
+.row .title { font-weight: 600; min-width: 0; }
+.row .meta { grid-column: 2; font-size: 13.5px; color: var(--muted); min-width: 0; }
+.row .meta .chips { margin-top: 4px; }
+.two { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); align-items: start; }
+table.lang { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.lang th { text-align: left; font-weight: 600; padding: 9px 14px; vertical-align: top; width: 28%; }
+table.lang td { padding: 9px 14px; color: var(--fg); vertical-align: top; }
+table.lang tr + tr th, table.lang tr + tr td { border-top: 1px solid var(--line); }
+.agg-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
+.agg-card { display: grid; gap: 8px; padding: 14px; text-decoration: none; color: var(--fg); align-content: start; border-top: 3px solid var(--entity); }
+.agg-card:hover { box-shadow: 0 2px 12px rgb(0 0 0 / .07); }
+.agg-card h3 { font-family: var(--font-display); font-size: 17px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.agg-card .desc { font-size: 14px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.bars { display: grid; gap: 6px; padding: 12px 14px; }
+.bar-row { display: grid; grid-template-columns: minmax(0, 1fr) 70px; gap: 10px; align-items: center; font-size: 13px; }
+.bar-row .track { grid-column: 1 / -1; height: 4px; background: var(--sunken); border-radius: 2px; overflow: hidden; }
+.bar-row .fill { height: 100%; background: var(--accent); }
+.bar-row .num { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.finding { display: grid; gap: 6px; padding: 12px 14px; border-top: 1px solid var(--line); border-left: 3px solid var(--line); }
+.finding:first-child { border-top: 0; }
+.finding.warn { border-left-color: var(--warn); }
+.finding.risk { border-left-color: var(--risk); }
+.sev { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.finding.warn .sev { color: var(--warn); }
+.finding.risk .sev { color: var(--risk); }
+.finding.info .sev { color: var(--muted); }
+
+/* ---------- aggregate ---------- */
+.composition { display: grid; gap: 12px; }
+.member-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+.member { display: grid; gap: 8px; padding: 14px; text-decoration: none; color: var(--fg); align-content: start; }
+.member:hover { box-shadow: 0 2px 12px rgb(0 0 0 / .07); }
+.member.root { border: 2px solid var(--entity); }
+.member h3 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-family: var(--font-display); font-size: 16px; }
+.member .desc { font-size: 14px; color: var(--muted); }
+.attrs { display: grid; gap: 2px; font: 12.5px/1.6 var(--font-mono); }
+.attrs .an { color: var(--fg); }
+.attrs .at { color: var(--muted); }
+.attrs .more { color: var(--muted); font-family: var(--font-body); font-size: 12.5px; }
+ol.invariants { margin: 0; padding: 12px 14px 12px 36px; display: grid; gap: 6px; font-size: 14px; }
+table.attr-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.attr-table td { padding: 8px 14px; vertical-align: top; }
+table.attr-table tr + tr td { border-top: 1px solid var(--line); }
+table.attr-table td:first-child { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; }
+table.attr-table td:nth-child(2) { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+.term-group { padding: 12px 14px; border-top: 1px solid var(--line); display: grid; gap: 6px; }
+.term-group:first-child { border-top: 0; }
+.term-group .meanings { display: grid; gap: 4px; font-size: 14px; }
+.term-group .meanings div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px; }
+@media (max-width: 560px) { .term-group .meanings div { grid-template-columns: 1fr; gap: 0; } }
+.filter { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 10px; font-size: 14px; width: min(100%, 320px); }
+.toast { position: fixed; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 6px 14px; border-radius: 8px; font-size: 13px; z-index: 20; }
+@media (prefers-reduced-motion: no-preference) { .main > * { animation: rise .18s ease-out; } }
+@keyframes rise { from { transform: translateY(4px); } to { transform: none; } }
+</style>
+
+<header class="bar">
+  <div class="bar-inner">
+    <a class="brand" href="#" id="brand"></a>
+    <button class="browse-toggle" id="browse-toggle" aria-expanded="false" aria-controls="rail">Browse</button>
+    <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
+    <div class="search">
+      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <input id="search" type="search" placeholder="Find an entity, use case, term…  ( / )" autocomplete="off" aria-label="Search the model">
+      <div class="results" id="results" role="listbox" hidden></div>
+    </div>
+  </div>
+</header>
+<div class="page">
+  <nav class="rail" id="rail" aria-label="Browse the model"></nav>
+  <main class="main" id="main"></main>
+</div>
+
+<script>
+const DATA = __MAP_DATA__;
+const SYM = new Set(["SK", "P", "SW"]);
+const UP_END = new Set(["OHS", "PL"]);
+const DOWN_END = new Set(["ACL", "CF"]);
+const PATTERN_NAMES = {
+  OHS: "Open Host Service", PL: "Published Language", ACL: "Anti-Corruption Layer", CF: "Conformist",
+  CS: "Customer / Supplier", SK: "Shared Kernel", P: "Partnership", SW: "Separate Ways",
+};
+const VIA = { api: "API", events: "events", "shared-db": "shared database", "shared-code": "shared code", library: "library", file: "files", ui: "UI" };
+const TYPE_RANK = { core: 0, supporting: 1, generic: 2, external: 3, outside: 4 };
+const KIND_LABEL = { internal: "Bounded context", external: "External system", outside: "Context outside this map" };
+
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const inline = (t) => esc(t).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+const md = (t) => String(t ?? "").trim() ? String(t).trim().split(/\n\s*\n/).map((p) => `<p>${inline(p)}</p>`).join("") : "";
+const kloc = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n ?? 0));
+const plural = (n, one, many = one + "s") => `${n} ${n === 1 ? one : many}`;
+
+// ---------------------------------------------------------------- index
+const ctxById = new Map(DATA.contexts.map((c) => [c.id, c]));
+const subById = new Map(DATA.subdomains.map((s) => [s.id, s]));
+const D = (c) => c.detail || {};
+const items = [];
+const byKey = new Map();
+const add = (it) => { items.push(it); byKey.set(it.key, it); };
+DATA.subdomains.forEach((s) => add({ key: `d-${s.id}`, kind: "subdomain", name: s.name, sub: s }));
+for (const c of DATA.contexts) {
+  add({ key: `c-${c.id}`, kind: "context", name: c.name, ctx: c });
+  for (const a of D(c).aggregates || []) {
+    add({ key: `a-${c.id}--${a.id}`, kind: "aggregate", name: a.name, ctx: c, agg: a });
+    for (const m of a.members || []) add({ key: `m-${c.id}--${a.id}--${m.id}`, kind: m.root ? "root" : m.kind, name: m.name, ctx: c, agg: a, obj: m });
+  }
+  for (const v of D(c).valueObjects || []) add({ key: `v-${c.id}--${v.id}`, kind: "value-object", name: v.name, ctx: c, obj: v });
+  for (const u of D(c).useCases || []) add({ key: `u-${c.id}--${u.id}`, kind: u.kind || "command", name: u.name, ctx: c, obj: u });
+  for (const e of D(c).events || []) add({ key: `e-${c.id}--${e.id}`, kind: "event", name: e.name, ctx: c, obj: e });
+  for (const s of D(c).services || []) add({ key: `s-${c.id}--${s.id}`, kind: "service", name: s.name, ctx: c, obj: s });
+  for (const t of D(c).language || []) items.push({ key: `c-${c.id}`, kind: "term", name: t.term, ctx: c, obj: t });
+}
+const relsOf = (id) => DATA.relationships.filter((r) => r.upstream === id || r.downstream === id);
+const typeOf = (c) => {
+  if (c.kind === "external" || c.kind === "outside") return c.kind;
+  const types = (c.subdomains || []).map((s) => subById.get(s)?.type).filter(Boolean);
+  return types.sort((a, b) => TYPE_RANK[a] - TYPE_RANK[b])[0] || "generic";
+};
+const consumedHere = (id) => DATA.contexts.flatMap((c) => (D(c).events || []).filter((e) => (e.consumedBy || []).includes(id)).map((e) => ({ ctx: c, ev: e })));
+
+// ---------------------------------------------------------------- pieces
+function codeHref(ref) {
+  const m = /^(.+?)(?::(\d+)(?:-(\d+))?)?$/.exec(ref);
+  const [path, a, b] = [m[1], m[2], m[3]];
+  const L = DATA.link;
+  return L ? L.base + path.split("/").map(encodeURIComponent).join("/") + (a ? (b ? L.range.replace("{a}", a).replace("{b}", b) : L.line.replace("{a}", a)) : "") : null;
+}
+function codeRef(ref) {
+  if (!ref) return "";
+  const href = codeHref(ref);
+  const label = esc(ref);
+  return `<span class="code-ref">${href ? `<a href="${esc(href)}" target="_blank" rel="noopener" title="Open in the repository">${label}</a>` : `<span class="path">${label}</span>`}<button class="copy" data-copy="${esc(ref)}" title="Copy the path" aria-label="Copy ${label}">⧉</button></span>`;
+}
+const kindLabel = { root: "root", entity: "entity", "value-object": "value", event: "event", command: "command", query: "query", service: "service", aggregate: "aggregate", context: "context", subdomain: "subdomain", term: "term" };
+const kind = (k) => `<span class="kind k-${esc(k)}">${esc(kindLabel[k] || k)}</span>`;
+const typePill = (t) => `<span class="type-pill t-${esc(t)}">${esc(t)}</span>`;
+const ctxChip = (c) => c ? `<a class="chip" href="#c-${esc(c.id)}"><span class="dot t-${typeOf(c)}"></span>${esc(c.name)}</a>` : "";
+const subChip = (s) => s ? `<a class="chip" href="#d-${esc(s.id)}"><span class="dot t-${esc(s.type)}"></span>${esc(s.name)}</a>` : "";
+const keyChip = (key) => { const it = byKey.get(key); return it ? `<a class="chip" href="#${esc(key)}">${kind(it.kind)}${esc(it.name)}</a>` : ""; };
+const section = (title, body, count) => body ? `<section class="section"><div class="section-head"><h2>${esc(title)}</h2>${count != null ? `<span class="count">${esc(count)}</span>` : ""}</div>${body}</section>` : "";
+const inferred = (o) => o?.inferred ? `<span class="inferred" title="Not explicit in the code: inferred from persistence and use cases">inferred</span>` : "";
+
+function attrs(list, max = 6) {
+  if (!list?.length) return "";
+  const rows = list.slice(0, max).map((a) => {
+    const i = String(a).indexOf(":");
+    return i > 0 ? `<div><span class="an">${esc(a.slice(0, i).trim())}</span><span class="at">: ${esc(a.slice(i + 1).trim())}</span></div>` : `<div class="an">${esc(a)}</div>`;
+  });
+  if (list.length > max) rows.push(`<div class="more">+ ${list.length - max} more</div>`);
+  return `<div class="attrs">${rows.join("")}</div>`;
+}
+
+// ---------------------------------------------------------------- context map
+function contextMap(ids, focus) {
+  const nodes = ids.map((id) => ctxById.get(id)).filter(Boolean);
+  const set = new Set(nodes.map((c) => c.id));
+  const rels = DATA.relationships.filter((r) => set.has(r.upstream) && set.has(r.downstream) && (!focus || r.upstream === focus || r.downstream === focus));
+  const directed = rels.filter((r) => !(r.patterns || []).length || !(r.patterns || []).every((p) => SYM.has(p)));
+  const rank = new Map(nodes.map((c) => [c.id, 0]));
+  for (let k = 0; k < nodes.length; k++) {
+    let changed = false;
+    for (const r of directed) {
+      const want = rank.get(r.upstream) + 1;
+      if (want > rank.get(r.downstream) && want < nodes.length) { rank.set(r.downstream, want); changed = true; }
+    }
+    if (!changed) break;
+  }
+  const levels = [...new Set(rank.values())].sort((a, b) => a - b);
+  let rows = levels.map((l) => nodes.filter((c) => rank.get(c.id) === l)
+    .sort((a, b) => (TYPE_RANK[typeOf(a)] ?? 3) - (TYPE_RANK[typeOf(b)] ?? 3) || a.name.localeCompare(b.name)));
+  // Wrap wide rows, then order each row by the mean position of its neighbours.
+  const MAX = 5;
+  rows = rows.flatMap((row) => { const out = []; for (let i = 0; i < row.length; i += MAX) out.push(row.slice(i, i + MAX)); return out; });
+  const nbrs = new Map(nodes.map((c) => [c.id, []]));
+  rels.forEach((r) => { nbrs.get(r.upstream).push(r.downstream); nbrs.get(r.downstream).push(r.upstream); });
+  const xpos = new Map();
+  const place = () => rows.forEach((row) => row.forEach((c, i) => xpos.set(c.id, (i + 1) / (row.length + 1))));
+  place();
+  for (let sweep = 0; sweep < 6; sweep++) {
+    for (const row of sweep % 2 ? [...rows].reverse() : rows) {
+      const bary = new Map(row.map((c) => {
+        const ns = nbrs.get(c.id).filter((n) => !row.some((x) => x.id === n));
+        return [c.id, ns.length ? ns.reduce((s, n) => s + xpos.get(n), 0) / ns.length : xpos.get(c.id)];
+      }));
+      row.sort((a, b) => bary.get(a.id) - bary.get(b.id));
+      row.forEach((c, i) => xpos.set(c.id, (i + 1) / (row.length + 1)));
+    }
+  }
+  const W = 188, H = 56, GX = 56, GY = 92, PAD = 28;
+  const widest = Math.max(...rows.map((r) => r.length));
+  const width = widest * W + (widest - 1) * GX + PAD * 2;
+  const height = rows.length * H + (rows.length - 1) * GY + PAD * 2;
+  const pos = new Map();
+  rows.forEach((row, ri) => {
+    const rowW = row.length * W + (row.length - 1) * GX;
+    row.forEach((c, i) => pos.set(c.id, { x: (width - rowW) / 2 + i * (W + GX), y: PAD + ri * (H + GY) }));
+  });
+  const clip = (from, to) => {
+    const cx = from.x + W / 2, cy = from.y + H / 2, dx = to.x + W / 2 - cx, dy = to.y + H / 2 - cy;
+    const t = Math.min(Math.abs((W / 2 + 4) / (dx || 1e-9)), Math.abs((H / 2 + 4) / (dy || 1e-9)));
+    return { x: cx + dx * t, y: cy + dy * t };
+  };
+  const pairs = new Map();
+  const edges = rels.map((r, idx) => {
+    const k = [r.upstream, r.downstream].sort().join("|");
+    const n = pairs.get(k) || 0;
+    pairs.set(k, n + 1);
+    const a = pos.get(r.upstream), b = pos.get(r.downstream);
+    let p = clip(a, b), q = clip(b, a);
+    const len = Math.hypot(q.x - p.x, q.y - p.y) || 1, ux = (q.x - p.x) / len, uy = (q.y - p.y) / len;
+    const off = n * 10;
+    p = { x: p.x - uy * off, y: p.y + ux * off };
+    q = { x: q.x - uy * off, y: q.y + ux * off };
+    const pats = r.patterns || [];
+    const sym = pats.length && pats.every((x) => SYM.has(x));
+    const label = (x, y, text) => {
+      const w = text.length * 6.4 + 10;
+      return `<rect class="lbl" x="${x - w / 2}" y="${y - 8}" width="${w}" height="16" rx="4"/><text x="${x}" y="${y + 3.5}" text-anchor="middle">${esc(text)}</text>`;
+    };
+    const at = (d) => ({ x: p.x + ux * d, y: p.y + uy * d });
+    const back = (d) => ({ x: q.x - ux * d, y: q.y - uy * d });
+    const upTxt = ["U", ...pats.filter((x) => UP_END.has(x))].join(" · ");
+    const downTxt = ["D", ...pats.filter((x) => DOWN_END.has(x))].join(" · ");
+    const mid = pats.filter((x) => !UP_END.has(x) && !DOWN_END.has(x));
+    const m = at(len / 2);
+    const lu = at(Math.min(30, len / 4)), ld = back(Math.min(34, len / 4));
+    const weak = ["shared-db", "shared-code"].includes(r.via);
+    return `<g class="map-edge${weak ? " weak" : ""}" data-key="r-${esc(r.upstream)}--${esc(r.downstream)}" data-a="${esc(r.upstream)}" data-b="${esc(r.downstream)}" tabindex="0" role="link" aria-label="${esc(ctxById.get(r.upstream).name)} to ${esc(ctxById.get(r.downstream).name)}">
+      <line class="hit" x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}"/>
+      <line class="vis" x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}" ${sym ? "" : 'marker-end="url(#arrow)"'}/>
+      ${sym ? "" : label(lu.x, lu.y, upTxt) + label(ld.x, ld.y, downTxt)}
+      ${mid.length ? label(m.x, m.y, mid.join(" · ")) : ""}
+      <title>${esc(ctxById.get(r.upstream).name)} → ${esc(ctxById.get(r.downstream).name)}${r.via ? ` (${esc(VIA[r.via] || r.via)})` : ""}: ${esc(r.description)}</title>
+    </g>`;
+  });
+  const nodeSvg = nodes.map((c) => {
+    const { x, y } = pos.get(c.id);
+    const t = typeOf(c);
+    const name = c.name.length > 24 ? c.name.slice(0, 23) + "…" : c.name;
+    const subline = c.kind === "external" ? "external system" : c.kind === "outside" ? "outside this map" : `${t}${c.stats ? ` · ${kloc(c.stats.loc)} LoC` : ""}`;
+    return `<g class="map-node${c.id === focus ? " focus" : ""}${c.kind === "outside" ? " outside" : ""}" data-id="${esc(c.id)}" tabindex="0" role="link" aria-label="${esc(c.name)}">
+      <rect class="box" x="${x}" y="${y}" width="${W}" height="${H}" rx="9"/>
+      <rect x="${x}" y="${y}" width="5" height="${H}" rx="2" style="fill: var(--${t})"/>
+      <text x="${x + 16}" y="${y + 23}">${esc(name)}</text>
+      <text class="sub" x="${x + 16}" y="${y + 41}">${esc(subline)}</text>
+      <title>${esc(c.name)}</title>
+    </g>`;
+  });
+  const wrap = document.createElement("div");
+  wrap.className = `panel map${edges.length > 10 ? " busy" : ""}`;
+  wrap.innerHTML = `<div class="map-wrap"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Context map">
+    <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrow" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+    ${edges.join("")}${nodeSvg.join("")}</svg></div>
+    <div class="legend"><span><b>U</b>/<b>D</b> upstream / downstream (arrow points downstream)</span>${[...new Set(rels.flatMap((r) => r.patterns || []))].map((p) => `<span><b>${p}</b> ${PATTERN_NAMES[p]}</span>`).join("")}<span>dashed: shared database or code</span>${edges.length > 10 ? "<span>hover a line or a context to read its patterns</span>" : ""}</div>`;
+  const svg = $("svg", wrap);
+  // Never scale the map up; scale it down to the column, then scroll below 640px.
+  svg.style.width = `min(100%, ${width}px)`;
+  svg.style.minWidth = `${Math.min(width, 640)}px`;
+  const lightUp = (id) => {
+    svg.classList.toggle("dim", Boolean(id));
+    svg.querySelectorAll(".lit").forEach((el) => el.classList.remove("lit"));
+    if (!id) return;
+    svg.querySelectorAll(`.map-edge[data-a="${id}"], .map-edge[data-b="${id}"]`).forEach((e) => {
+      e.classList.add("lit");
+      svg.querySelectorAll(`.map-node[data-id="${e.dataset.a}"], .map-node[data-id="${e.dataset.b}"]`).forEach((n) => n.classList.add("lit"));
+    });
+    svg.querySelector(`.map-node[data-id="${id}"]`)?.classList.add("lit");
+  };
+  svg.querySelectorAll(".map-node").forEach((n) => {
+    n.addEventListener("mouseenter", () => lightUp(n.dataset.id));
+    n.addEventListener("mouseleave", () => lightUp(null));
+    const go = () => (location.hash = `c-${n.dataset.id}`);
+    n.addEventListener("click", go);
+    n.addEventListener("keydown", (e) => e.key === "Enter" && go());
+  });
+  svg.querySelectorAll(".map-edge").forEach((e) => {
+    const go = () => (location.hash = e.dataset.key);
+    e.addEventListener("click", go);
+    e.addEventListener("keydown", (ev) => ev.key === "Enter" && go());
+  });
+  return wrap;
+}
+
+// ---------------------------------------------------------------- views
+function viewOverview() {
+  const s = DATA.stats;
+  const n = (key) => DATA.contexts.reduce((t, c) => t + (D(c)[key] || []).length, 0);
+  const pct = s.loc ? Math.round((100 * s.assignedLoc) / s.loc) : 0;
+  const sources = (DATA.domain.sources || []).map((x) => x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.label || x.url)}</a>` : codeRef(x.code)).join("");
+  const cols = ["core", "supporting", "generic"].map((t) => {
+    const subs = DATA.subdomains.filter((x) => x.type === t);
+    if (!subs.length) return "";
+    return `<div class="sub-col t-${t}"><header>${typePill(t)}<span class="muted">${subs.length}</span></header>${subs.map((x) => {
+      const cs = DATA.contexts.filter((c) => (c.subdomains || []).includes(x.id));
+      return `<a class="panel sub-card t-${t}" href="#d-${esc(x.id)}"><h3>${esc(x.name)}</h3><div class="desc">${inline(x.description)}</div>${cs.length ? `<div class="chips">${cs.map((c) => `<span class="chip"><span class="dot t-${typeOf(c)}"></span>${esc(c.name)}</span>`).join("")}</div>` : ""}</a>`;
+    }).join("")}</div>`;
+  }).join("");
+  const main = $("#main");
+  main.innerHTML = `
+    <div class="domain-hero">
+      <div class="eyebrow">Business domain</div>
+      <h1>${esc(DATA.domain.name)}</h1>
+      <div class="prose">${md(DATA.domain.description)}</div>
+      ${sources ? `<div class="sources"><span class="muted">From</span>${sources}</div>` : ""}
+      <div class="facts"><span><b>${kloc(s.loc)}</b> LoC in ${s.files} files</span><span><b>${pct}%</b> inside a context</span><span><b>${DATA.contexts.length}</b> bounded contexts</span><span><b>${n("aggregates")}</b> aggregates</span><span><b>${n("useCases")}</b> use cases</span><span><b>${n("events")}</b> domain events</span><span>mapped ${esc(s.date)}${DATA.link ? ` at <code>${esc(DATA.link.sha.slice(0, 8))}</code>` : ""}</span></div>
+    </div>
+    ${section("Subdomains", `<div class="sub-grid">${cols}</div>`, "the problem space: what the business needs")}
+    <section class="section"><div class="section-head"><h2>Context map</h2><span class="count">the solution space: where each model holds, and how they depend on each other</span></div><div id="map-slot"></div></section>
+    ${section("Bounded contexts", `<div class="ctx-grid">${[...DATA.contexts].sort((a, b) => (TYPE_RANK[typeOf(a)] ?? 3) - (TYPE_RANK[typeOf(b)] ?? 3) || a.name.localeCompare(b.name)).map(ctxCard).join("")}</div>`, DATA.contexts.length)}
+    ${DATA.unassigned?.length ? section("Outside every context", `<div class="panel rows">${DATA.unassigned.map((u) => `<div class="row"><span class="kind k-service">code</span><span class="title">${codeRef(u.path)}</span><span class="meta">${inline(u.reason)}</span></div>`).join("")}</div>`, "infrastructure, tooling and shared plumbing") : ""}`;
+  const outside = DATA.contexts.filter((c) => c.kind === "outside");
+  const slot = $("#map-slot");
+  const draw = (withOutside) => {
+    const map = contextMap(DATA.contexts.filter((c) => withOutside || c.kind !== "outside").map((c) => c.id));
+    if (outside.length) {
+      const tools = document.createElement("div");
+      tools.className = "map-tools";
+      tools.innerHTML = `<label><input type="checkbox" id="show-outside"${withOutside ? " checked" : ""}> Show the ${plural(outside.length, "context")} outside this map</label>`;
+      map.prepend(tools);
+      $("#show-outside", tools).addEventListener("change", (e) => draw(e.target.checked));
+    }
+    slot.replaceChildren(map);
+  };
+  draw(false);
+}
+
+function ctxCard(c) {
+  const d = D(c);
+  const facts = c.kind === "external" ? ["external system"] : c.kind === "outside" ? ["outside this map"] : [`${kloc(c.stats?.loc || 0)} LoC`, plural((d.aggregates || []).length, "aggregate"), plural((d.useCases || []).length, "use case")];
+  return `<a class="panel ctx-card" href="#c-${esc(c.id)}"><h3>${esc(c.name)}</h3><div class="chips">${(c.subdomains || []).map((s) => subById.get(s)).filter(Boolean).map((s) => `<span class="chip"><span class="dot t-${esc(s.type)}"></span>${esc(s.name)}</span>`).join("")}</div><div class="desc">${inline(c.description)}</div><div class="facts">${facts.map((f) => `<span>${esc(f)}</span>`).join("")}</div></a>`;
+}
+
+function viewSubdomain(s) {
+  const cs = DATA.contexts.filter((c) => (c.subdomains || []).includes(s.id));
+  $("#main").innerHTML = `
+    <div class="head"><div class="eyebrow">Subdomain</div><h1>${esc(s.name)}</h1><div>${typePill(s.type)}</div><div class="prose">${md(s.description)}</div>
+    ${s.why ? `<div class="prose muted">${md(s.why)}</div>` : ""}</div>
+    ${section("Implemented by", cs.length ? `<div class="ctx-grid">${cs.map(ctxCard).join("")}</div>` : `<p class="empty">No bounded context implements this subdomain yet.</p>`, cs.length)}`;
+}
+
+function viewContext(c) {
+  const d = D(c);
+  const ups = DATA.relationships.filter((r) => r.downstream === c.id);
+  const downs = DATA.relationships.filter((r) => r.upstream === c.id);
+  const relRow = (r, other) => `<a class="row" href="#r-${esc(r.upstream)}--${esc(r.downstream)}"><span class="kind k-context">${r.upstream === c.id ? "→" : "←"}</span><span class="title">${esc(ctxById.get(other)?.name)}</span><span class="meta">${(r.patterns || []).map((p) => `<code title="${esc(PATTERN_NAMES[p])}">${esc(p)}</code>`).join(" ")} ${r.via ? esc(VIA[r.via] || r.via) + " · " : ""}${inline(r.description)}</span></a>`;
+  const commands = (d.useCases || []).filter((u) => (u.kind || "command") === "command");
+  const queries = (d.useCases || []).filter((u) => u.kind === "query");
+  const ucRows = (list) => list.length ? `<div class="panel rows">${list.map((u) => `<a class="row" href="#u-${esc(c.id)}--${esc(u.id)}">${kind(u.kind || "command")}<span class="title">${esc(u.name)}</span><span class="meta">${u.trigger ? `<code>${esc(u.trigger)}</code> · ` : ""}${inline(u.description)}</span></a>`).join("")}</div>` : `<p class="empty">None.</p>`;
+  const consumed = consumedHere(c.id);
+  const st = c.stats;
+  const maxDir = Math.max(1, ...(st?.dirs || []).map((x) => x[1]));
+  $("#main").innerHTML = `
+    <div class="head">
+      <div class="eyebrow">${KIND_LABEL[c.kind || "internal"]}</div>
+      <h1>${esc(c.name)}</h1>
+      <div class="chips">${(c.subdomains || []).map((s) => subChip(subById.get(s))).join("")}</div>
+      <div class="prose">${md(c.description)}</div>
+      ${st ? `<div class="facts"><span><b>${kloc(st.loc)}</b> LoC</span><span><b>${st.files}</b> files</span><span><b>${st.commits}</b> commits in the last year</span>${c.team ? `<span>team <b>${esc(c.team)}</b></span>` : ""}</div>` : ""}
+      ${(c.paths || []).length ? `<div class="chips">${c.paths.map((p) => `<span class="chip">${codeRef(p)}</span>`).join("")}</div>` : ""}
+    </div>
+    ${ups.length || downs.length ? `<section class="section"><div class="section-head"><h2>Relationships</h2><span class="count">${plural(ups.length, "upstream")}, ${plural(downs.length, "downstream")}</span></div><div id="ego"></div><div class="two">${ups.length ? `<div class="panel rows">${ups.map((r) => relRow(r, r.upstream)).join("")}</div>` : ""}${downs.length ? `<div class="panel rows">${downs.map((r) => relRow(r, r.downstream)).join("")}</div>` : ""}</div></section>` : ""}
+    ${section("Ubiquitous language", (d.language || []).length ? `<div class="panel"><table class="lang">${d.language.map((t) => `<tr><th>${esc(t.term)}</th><td>${inline(t.meaning)}${t.code ? `<div>${codeRef(t.code)}</div>` : ""}</td></tr>`).join("")}</table></div>` : "", (d.language || []).length)}
+    ${section("Aggregates", (d.aggregates || []).length ? `<div class="agg-grid">${d.aggregates.map((a) => aggCard(c, a)).join("")}</div>` : `<p class="empty">No aggregate: this context holds no state of its own, or keeps it as plain records.</p>`, (d.aggregates || []).length)}
+    ${section("Use cases", (d.useCases || []).length ? `<div class="two"><div class="section"><h3>Commands <span class="muted">${commands.length}</span></h3>${ucRows(commands)}</div><div class="section"><h3>Queries <span class="muted">${queries.length}</span></h3>${ucRows(queries)}</div></div>` : "", (d.useCases || []).length)}
+    ${section("Domain events", (d.events || []).length || consumed.length ? `<div class="two">${(d.events || []).length ? `<div class="section"><h3>Published <span class="muted">${d.events.length}</span></h3><div class="panel rows">${d.events.map((e) => `<a class="row" href="#e-${esc(c.id)}--${esc(e.id)}">${kind("event")}<span class="title">${esc(e.name)}</span><span class="meta">${inline(e.description)}${(e.consumedBy || []).length ? `<div class="chips">${e.consumedBy.map((x) => `<span class="chip">→ ${esc(ctxById.get(x)?.name)}</span>`).join("")}</div>` : ""}</span></a>`).join("")}</div></div>` : ""}${consumed.length ? `<div class="section"><h3>Consumed <span class="muted">${consumed.length}</span></h3><div class="panel rows">${consumed.map(({ ctx, ev }) => `<a class="row" href="#e-${esc(ctx.id)}--${esc(ev.id)}">${kind("event")}<span class="title">${esc(ev.name)}</span><span class="meta">from ${esc(ctx.name)}</span></a>`).join("")}</div></div>` : ""}</div>` : "")}
+    ${section("Value objects", (d.valueObjects || []).length ? `<div class="member-grid">${d.valueObjects.map((v) => memberCard(`v-${c.id}--${v.id}`, v, "value-object")).join("")}</div>` : "", (d.valueObjects || []).length ? "used across aggregates" : null)}
+    ${section("Services and policies", (d.services || []).length ? `<div class="panel rows">${d.services.map((s) => `<a class="row" href="#s-${esc(c.id)}--${esc(s.id)}">${kind("service")}<span class="title">${esc(s.name)}</span><span class="meta">${s.kind ? `${esc(s.kind)} · ` : ""}${inline(s.description)}</span></a>`).join("")}</div>` : "", (d.services || []).length)}
+    ${section("Persistence", st?.tables?.length ? `<div class="chips">${st.tables.map((t) => { const href = codeHref(t.ref); return href ? `<a class="chip" href="${esc(href)}" target="_blank" rel="noopener" title="${esc(t.ref)}">${esc(t.name)}</a>` : `<span class="chip" title="${esc(t.ref)}">${esc(t.name)}</span>`; }).join("")}</div>` : "", st?.tables?.length ? "tables and models declared in this context's code" : null)}
+    ${section("Findings", findingsList(d.findings || []), (d.findings || []).length)}
+    ${section("Code", st?.dirs?.length ? `<div class="panel bars">${st.dirs.map(([dir, loc]) => `<div class="bar-row"><span>${codeRef(dir)}</span><span class="num">${kloc(loc)}</span><div class="track"><div class="fill" style="width:${(100 * loc) / maxDir}%"></div></div></div>`).join("")}</div>` : "", st ? `largest directories` : null)}`;
+  const ego = $("#ego");
+  if (ego) {
+    const ids = [c.id, ...ups.map((r) => r.upstream), ...downs.map((r) => r.downstream)];
+    ego.replaceWith(contextMap([...new Set(ids)], c.id));
+  }
+}
+
+function aggCard(c, a) {
+  const members = a.members || [];
+  const root = members.find((m) => m.root);
+  const ents = members.filter((m) => m.kind === "entity").length;
+  const vos = members.filter((m) => m.kind === "value-object").length;
+  return `<a class="panel agg-card" href="#a-${esc(c.id)}--${esc(a.id)}"><h3>${esc(a.name)} ${inferred(a)}</h3><div class="desc">${inline(a.description)}</div><div class="facts"><span>root <b>${esc(root?.name || "?")}</b></span><span>${plural(ents, "entity", "entities")}</span><span>${plural(vos, "value")}</span>${(a.invariants || []).length ? `<span>${plural(a.invariants.length, "rule")}</span>` : ""}</div></a>`;
+}
+
+function memberCard(key, m, k) {
+  return `<a class="panel member${m.root ? " root" : ""}" href="#${esc(key)}"><h3>${kind(m.root ? "root" : k || m.kind)} ${esc(m.name)} ${inferred(m)}</h3><div class="desc">${inline(m.description)}</div>${attrs(m.attributes)}</a>`;
+}
+
+function findingsList(list, withCtx) {
+  if (!list.length) return "";
+  const order = { risk: 0, warn: 1, info: 2 };
+  return `<div class="panel">${[...list].sort((a, b) => (order[a.severity || "info"] - order[b.severity || "info"])).map((f) => `<div class="finding ${esc(f.severity || "info")}"><div class="chips"><span class="sev">${esc(f.severity || "info")}</span>${withCtx ? ctxChip(f._ctx) : ""}</div><h3>${esc(f.title)}</h3><div class="prose">${md(f.text)}</div>${(f.code || []).length ? `<div class="chips">${f.code.map(codeRef).join("")}</div>` : ""}</div>`).join("")}</div>`;
+}
+
+function viewAggregate(c, a) {
+  const d = D(c);
+  const members = a.members || [];
+  const root = members.find((m) => m.root);
+  const others = members.filter((m) => !m.root);
+  const ucs = (d.useCases || []).filter((u) => (u.aggregates || []).includes(a.id));
+  $("#main").innerHTML = `
+    <div class="head"><div class="eyebrow">Aggregate in ${esc(c.name)}</div><h1>${esc(a.name)} ${inferred(a)}</h1><div class="prose">${md(a.description)}</div>
+    <div class="chips">${a.code ? codeRef(a.code) : ""}${a.repository ? `<span class="muted">repository</span>${codeRef(a.repository)}` : ""}</div></div>
+    ${section("Invariants", (a.invariants || []).length ? `<div class="panel"><ol class="invariants">${a.invariants.map((i) => `<li>${inline(i)}</li>`).join("")}</ol></div>` : "", (a.invariants || []).length ? "rules the aggregate keeps true in every transaction" : null)}
+    ${section("Composition", `<div class="composition">${root ? `<div class="member-grid">${memberCard(`m-${c.id}--${a.id}--${root.id}`, root)}</div>` : ""}${others.length ? `<div class="member-grid">${others.map((m) => memberCard(`m-${c.id}--${a.id}--${m.id}`, m)).join("")}</div>` : ""}</div>`, `${plural(members.filter((m) => m.kind === "entity").length, "entity", "entities")}, ${plural(members.filter((m) => m.kind === "value-object").length, "value object")}`)}
+    ${section("Changed by", ucs.length ? `<div class="panel rows">${ucs.map((u) => `<a class="row" href="#u-${esc(c.id)}--${esc(u.id)}">${kind(u.kind || "command")}<span class="title">${esc(u.name)}</span><span class="meta">${inline(u.description)}</span></a>`).join("")}</div>` : "", ucs.length)}
+    ${section("Emits", (a.events || []).length ? `<div class="chips">${a.events.map((e) => keyChip(`e-${c.id}--${e}`)).join("")}</div>` : "")}`;
+}
+
+function viewMember(c, a, m, key) {
+  const d = D(c);
+  const ucs = a ? (d.useCases || []).filter((u) => (u.aggregates || []).includes(a.id)) : [];
+  const siblings = a ? (a.members || []).filter((x) => x.id !== m.id) : [];
+  const rows = (m.attributes || []).map((x) => { const i = String(x).indexOf(":"); return i > 0 ? [x.slice(0, i).trim(), x.slice(i + 1).trim()] : [x, ""]; });
+  const k = m.root ? "root" : m.kind || "value-object";
+  const what = { root: "Aggregate root", entity: "Entity", "value-object": "Value object" }[k];
+  $("#main").innerHTML = `
+    <div class="head"><div class="eyebrow">${what}${a ? ` in ${esc(a.name)}` : ""} · ${esc(c.name)}</div><h1>${esc(m.name)} ${inferred(m)}</h1><div class="prose">${md(m.description)}</div>${m.code ? `<div>${codeRef(m.code)}</div>` : ""}</div>
+    ${section("Attributes", rows.length ? `<div class="panel"><table class="attr-table">${rows.map(([n, t]) => `<tr><td>${esc(n)}</td><td>${esc(t)}</td></tr>`).join("")}</table></div>` : "", rows.length)}
+    ${section("Behaviour", (m.behaviours || []).length ? `<div class="panel rows">${m.behaviours.map((b) => `<div class="row"><span class="kind k-command">fn</span><span class="title"><code>${esc(b)}</code></span></div>`).join("")}</div>` : (k === "root" || k === "entity" ? `<p class="empty">No behaviour on the object itself: its state changes in the use cases below.</p>` : ""), (m.behaviours || []).length || null)}
+    ${section("Rules", (m.invariants || []).length ? `<div class="panel"><ol class="invariants">${m.invariants.map((i) => `<li>${inline(i)}</li>`).join("")}</ol></div>` : "")}
+    ${section("Changed by", ucs.length ? `<div class="chips">${ucs.map((u) => keyChip(`u-${c.id}--${u.id}`)).join("")}</div>` : "")}
+    ${section(a ? `Also in ${a.name}` : "", siblings.length ? `<div class="chips">${keyChip(`a-${c.id}--${a.id}`)}${siblings.map((s) => keyChip(`m-${c.id}--${a.id}--${s.id}`)).join("")}</div>` : "")}`;
+}
+
+function viewUseCase(c, u) {
+  $("#main").innerHTML = `
+    <div class="head"><div class="eyebrow">${u.kind === "query" ? "Query" : "Command"} in ${esc(c.name)}</div><h1>${esc(u.name)}</h1><div class="prose">${md(u.description)}</div>
+    <div class="facts">${u.actor ? `<span>by <b>${esc(u.actor)}</b></span>` : ""}${u.trigger ? `<span>trigger <code>${esc(u.trigger)}</code></span>` : ""}</div>${u.code ? `<div>${codeRef(u.code)}</div>` : ""}</div>
+    ${section("Aggregates", (u.aggregates || []).length ? `<div class="chips">${u.aggregates.map((x) => keyChip(`a-${c.id}--${x}`)).join("")}</div>` : "")}
+    ${section("Emits", (u.emits || []).length ? `<div class="chips">${u.emits.map((x) => keyChip(`e-${c.id}--${x}`)).join("")}</div>` : "")}
+    ${section("Steps", (u.steps || []).length ? `<div class="panel"><ol class="invariants">${u.steps.map((s) => `<li>${inline(s)}</li>`).join("")}</ol></div>` : "")}`;
+}
+
+function viewEvent(c, e) {
+  const d = D(c);
+  const byAgg = (d.aggregates || []).filter((a) => (a.events || []).includes(e.id));
+  const byUc = (d.useCases || []).filter((u) => (u.emits || []).includes(e.id));
+  $("#main").innerHTML = `
+    <div class="head"><div class="eyebrow">Domain event of ${esc(c.name)}</div><h1>${esc(e.name)}</h1><div class="prose">${md(e.description)}</div>${e.code ? `<div>${codeRef(e.code)}</div>` : ""}</div>
+    ${section("Payload", (e.attributes || []).length ? `<div class="panel" style="padding:12px 14px">${attrs(e.attributes, 50)}</div>` : "")}
+    ${section("Raised by", byAgg.length || byUc.length ? `<div class="chips">${byAgg.map((a) => keyChip(`a-${c.id}--${a.id}`)).join("")}${byUc.map((u) => keyChip(`u-${c.id}--${u.id}`)).join("")}</div>` : "")}
+    ${section("Consumed by", (e.consumedBy || []).length ? `<div class="chips">${e.consumedBy.map((x) => ctxChip(ctxById.get(x))).join("")}</div>` : `<p class="empty">No other context listens to it.</p>`)}`;
+}
+
+function viewService(c, s) {
+  $("#main").innerHTML = `
+    <div class="head"><div class="eyebrow">${esc(s.kind || "Service")} in ${esc(c.name)}</div><h1>${esc(s.name)}</h1><div class="prose">${md(s.description)}</div>${s.code ? `<div>${codeRef(s.code)}</div>` : ""}</div>`;
+}
+
+function viewRelationship(r) {
+  const up = ctxById.get(r.upstream), down = ctxById.get(r.downstream);
+  const pats = r.patterns || [];
+  $("#main").innerHTML = `
+    <div class="head"><div class="eyebrow">Relationship${r.via ? ` through ${esc(VIA[r.via] || r.via)}` : ""}</div><h1>${esc(up.name)} → ${esc(down.name)}</h1>
+    <div class="chips">${ctxChip(up)}<span class="muted">upstream</span>${ctxChip(down)}<span class="muted">downstream</span></div>
+    <div class="prose">${md(r.description)}</div></div>
+    ${section("Patterns", pats.length ? `<div class="panel rows">${pats.map((p) => `<div class="row"><code>${esc(p)}</code><span class="title">${esc(PATTERN_NAMES[p])}</span></div>`).join("")}</div>` : "")}
+    ${section("Evidence", (r.evidence || []).length ? `<div class="panel rows">${r.evidence.map((x) => `<div class="row"><span class="kind k-service">code</span><span class="title">${codeRef(x)}</span></div>`).join("")}</div>` : "")}`;
+  const slot = document.createElement("div");
+  $("#main").insertBefore(slot, $("#main").children[1]);
+  slot.replaceWith(contextMap([up.id, down.id]));
+}
+
+function viewGlossary() {
+  const groups = new Map();
+  DATA.contexts.forEach((c) => (D(c).language || []).forEach((t) => {
+    const k = t.term.trim().toLowerCase();
+    if (!groups.has(k)) groups.set(k, { term: t.term, list: [] });
+    groups.get(k).list.push({ c, t });
+  }));
+  const all = [...groups.values()].sort((a, b) => (b.list.length > 1) - (a.list.length > 1) || a.term.localeCompare(b.term));
+  const multi = all.filter((g) => g.list.length > 1).length;
+  const render = (q) => all.filter((g) => !q || g.term.toLowerCase().includes(q) || g.list.some(({ t }) => t.meaning.toLowerCase().includes(q)))
+    .map((g) => `<div class="term-group"><h3>${esc(g.term)} ${g.list.length > 1 ? `<span class="type-pill t-core">${g.list.length} contexts</span>` : ""}</h3><div class="meanings">${g.list.map(({ c, t }) => `<div><a href="#c-${esc(c.id)}">${esc(c.name)}</a><span>${inline(t.meaning)}</span></div>`).join("")}</div></div>`).join("") || `<p class="empty" style="padding:12px 14px">No term matches.</p>`;
+  $("#main").innerHTML = `
+    <div class="head"><div class="eyebrow">Ubiquitous language</div><h1>Glossary</h1><p class="muted">${plural(all.length, "term")} across ${plural(DATA.contexts.length, "context")}. ${multi ? `${plural(multi, "term")} appear in several contexts, listed first: each context gives the word its own meaning, which is where a boundary runs.` : ""}</p>
+    <input class="filter" id="glossary-filter" type="search" placeholder="Filter terms" aria-label="Filter terms"></div>
+    <div class="panel" id="terms">${render("")}</div>`;
+  $("#glossary-filter").addEventListener("input", (e) => ($("#terms").innerHTML = render(e.target.value.trim().toLowerCase())));
+}
+
+function viewFindings() {
+  const all = DATA.contexts.flatMap((c) => (D(c).findings || []).map((f) => ({ ...f, _ctx: c })));
+  $("#main").innerHTML = `<div class="head"><div class="eyebrow">Across all contexts</div><h1>Findings</h1><p class="muted">Where the code and the model disagree: leaking boundaries, anaemic objects, rules without a home.</p></div>
+    ${findingsList(all, true) || `<p class="empty">No findings.</p>`}`;
+}
+
+// ---------------------------------------------------------------- rail, crumbs, router
+function rail(current) {
+  const ctxs = [...DATA.contexts].sort((a, b) => (TYPE_RANK[typeOf(a)] ?? 3) - (TYPE_RANK[typeOf(b)] ?? 3) || a.name.localeCompare(b.name));
+  const cur = (k) => (k === current ? ' aria-current="page"' : "");
+  const open = current.match(/^[camuevs]-([a-z0-9-]+?)(?:--|$)/)?.[1];
+  $("#rail").innerHTML = `
+    <div class="rail-group"><a href="#"${cur("")}><span class="n">${esc(DATA.domain.name)}</span></a><a href="#glossary"${cur("glossary")}><span class="n">Glossary</span></a>${DATA.contexts.some((c) => (D(c).findings || []).length) ? `<a href="#findings"${cur("findings")}><span class="n">Findings</span></a>` : ""}</div>
+    <div class="rail-group"><div class="rail-label">Bounded contexts</div>${ctxs.map((c) => `<a href="#c-${esc(c.id)}"${cur(`c-${c.id}`)}><span class="dot t-${typeOf(c)}"></span><span class="n">${esc(c.name)}</span></a>${c.id === open ? (D(c).aggregates || []).map((a) => `<a class="sub" href="#a-${esc(c.id)}--${esc(a.id)}"${cur(`a-${c.id}--${a.id}`)}><span class="n">${esc(a.name)}</span></a>`).join("") : ""}`).join("")}</div>`;
+}
+
+function crumbs(list) {
+  $("#crumbs").innerHTML = list.map(([href, label]) => `<a href="${esc(href)}">${esc(label)}</a>`).join('<span class="sep">›</span>');
+}
+
+function route() {
+  const key = decodeURIComponent(location.hash.slice(1));
+  const home = ["#", DATA.domain.name];
+  const parts = key.split("--");
+  const c = ctxById.get(parts[0].slice(2));
+  const agg = c && parts[1] ? (D(c).aggregates || []).find((a) => a.id === parts[1]) : null;
+  const find = (list, id) => (list || []).find((x) => x.id === id);
+  let trail = [home];
+  if (!key) viewOverview();
+  else if (key === "glossary") { viewGlossary(); trail.push(["#glossary", "Glossary"]); }
+  else if (key === "findings") { viewFindings(); trail.push(["#findings", "Findings"]); }
+  else if (key.startsWith("d-") && subById.get(key.slice(2))) { const s = subById.get(key.slice(2)); viewSubdomain(s); trail.push([`#${key}`, s.name]); }
+  else if (key.startsWith("r-")) {
+    const r = DATA.relationships.find((x) => `r-${x.upstream}--${x.downstream}` === key);
+    if (r) { viewRelationship(r); trail.push([`#${key}`, `${ctxById.get(r.upstream).name} → ${ctxById.get(r.downstream).name}`]); } else return notFound();
+  } else if (c) {
+    trail.push([`#c-${c.id}`, c.name]);
+    const t = key[0];
+    if (t === "c" && parts.length === 1) viewContext(c);
+    else if (t === "a" && agg) { viewAggregate(c, agg); trail.push([`#${key}`, agg.name]); }
+    else if (t === "m" && agg && find(agg.members, parts[2])) { const m = find(agg.members, parts[2]); viewMember(c, agg, m, key); trail.push([`#a-${c.id}--${agg.id}`, agg.name], [`#${key}`, m.name]); }
+    else if (t === "v" && find(D(c).valueObjects, parts[1])) { const v = find(D(c).valueObjects, parts[1]); viewMember(c, null, { ...v, kind: "value-object" }, key); trail.push([`#${key}`, v.name]); }
+    else if (t === "u" && find(D(c).useCases, parts[1])) { const u = find(D(c).useCases, parts[1]); viewUseCase(c, u); trail.push([`#${key}`, u.name]); }
+    else if (t === "e" && find(D(c).events, parts[1])) { const e = find(D(c).events, parts[1]); viewEvent(c, e); trail.push([`#${key}`, e.name]); }
+    else if (t === "s" && find(D(c).services, parts[1])) { const s = find(D(c).services, parts[1]); viewService(c, s); trail.push([`#${key}`, s.name]); }
+    else return notFound();
+  } else return notFound();
+  crumbs(trail);
+  rail(key);
+  $("#rail").classList.remove("open");
+  $("#browse-toggle").setAttribute("aria-expanded", "false");
+  window.scrollTo({ top: 0 });
+}
+
+function notFound() {
+  $("#main").innerHTML = `<div class="head"><h1>Not in this map</h1><p class="muted">The link points to something this version of the map does not have. <a href="#">Back to the domain</a>.</p></div>`;
+  crumbs([["#", DATA.domain.name]]);
+  rail("");
+}
+
+// ---------------------------------------------------------------- search
+const input = $("#search"), results = $("#results");
+let hits = [], sel = 0;
+function search(q) {
+  q = q.trim().toLowerCase();
+  if (!q) { results.hidden = true; return; }
+  const score = (it) => { const n = it.name.toLowerCase(); return n === q ? 0 : n.startsWith(q) ? 1 : n.includes(q) ? 2 : 9; };
+  hits = items.map((it) => [score(it), it]).filter(([s]) => s < 9).sort((a, b) => a[0] - b[0] || a[1].name.length - b[1].name.length).slice(0, 30).map(([, it]) => it);
+  sel = 0;
+  results.innerHTML = hits.length ? hits.map((it, i) => `<a class="result" role="option" href="#${esc(it.key)}" aria-selected="${i === sel}">${kind(it.kind)}<span>${esc(it.name)}</span><span class="where">${esc(it.agg ? `${it.ctx.name} › ${it.agg.name}` : it.ctx?.name || "")}</span></a>`).join("") : `<div class="result muted">Nothing named like that.</div>`;
+  results.hidden = false;
+}
+input.addEventListener("input", () => search(input.value));
+input.addEventListener("keydown", (e) => {
+  if (results.hidden || !hits.length) return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    sel = (sel + (e.key === "ArrowDown" ? 1 : hits.length - 1)) % hits.length;
+    results.querySelectorAll(".result").forEach((r, i) => r.setAttribute("aria-selected", String(i === sel)));
+    results.children[sel]?.scrollIntoView({ block: "nearest" });
+  } else if (e.key === "Enter") { location.hash = hits[sel].key; input.value = ""; results.hidden = true; input.blur(); }
+  else if (e.key === "Escape") { input.value = ""; results.hidden = true; }
+});
+results.addEventListener("click", () => { input.value = ""; results.hidden = true; });
+document.addEventListener("click", (e) => { if (!e.target.closest(".search")) results.hidden = true; });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && document.activeElement?.tagName !== "INPUT") { e.preventDefault(); input.focus(); }
+});
+
+// ---------------------------------------------------------------- copy, browse
+function toast(text) {
+  const t = Object.assign(document.createElement("div"), { className: "toast", textContent: text });
+  document.body.append(t);
+  setTimeout(() => t.remove(), 1400);
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".copy");
+  if (!b) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const text = b.dataset.copy;
+  const fallback = () => { const r = document.createRange(); const s = b.previousElementSibling; if (s) { r.selectNodeContents(s); getSelection().removeAllRanges(); getSelection().addRange(r); } toast("Selected: copy with ⌘C"); };
+  try { navigator.clipboard.writeText(text).then(() => toast(`Copied ${text}`), fallback); } catch { fallback(); }
+});
+$("#browse-toggle").addEventListener("click", () => {
+  const open = $("#rail").classList.toggle("open");
+  $("#browse-toggle").setAttribute("aria-expanded", String(open));
+});
+
+$("#brand").textContent = DATA.title;
+document.title = DATA.title;
+window.addEventListener("hashchange", route);
+route();
+</script>

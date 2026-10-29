@@ -12,9 +12,9 @@
     {
       "name": "clementbresson",
       "source": "./plugins/clementbresson",
-      "description": "All my skills in one plugin. pr-review turns a pull request into a logical reading order inside GitHub; branch-tour walks through a finished branch as an interactive artifact; demo-video records a captioned demo video of a local web app.",
+      "description": "All my skills in one plugin. pr-review turns a pull request into a logical reading order inside GitHub; branch-tour walks through a finished branch as an interactive artifact; demo-video records a captioned demo video of a local web app; ddd-map maps a codebase's domain (subdomains, bounded contexts, aggregates) as an interactive page.",
       "category": "code-review",
-      "tags": ["github", "git", "code-review", "pull-request", "walkthrough"]
+      "tags": ["github", "git", "code-review", "pull-request", "walkthrough", "ddd"]
     }
   ]
 }

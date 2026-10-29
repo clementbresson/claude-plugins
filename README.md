@@ -8,6 +8,7 @@ so every skill is called as `/clementbresson:<skill>`.
 | [`/clementbresson:pr-review`](#pr-review) | Turns a pull request into a logical reading order |
 | [`/clementbresson:branch-tour`](#branch-tour) | Walks through a finished branch as an interactive page |
 | [`/clementbresson:demo-video`](#demo-video) | Records a captioned demo video of a local web app |
+| [`/clementbresson:ddd-map`](#ddd-map) | Maps a codebase's domain (DDD) as an interactive page |
 
 ## Install
 
@@ -158,6 +159,56 @@ it in a headless Chrome on your local instance:
 
 ```
 /clementbresson:demo-video invoice reminders
+```
+
+---
+
+## ddd-map
+
+Ask for « a DDD analysis of this codebase ». Claude reads the domain out of
+the code and publishes it as a private claude.ai page you browse top-down:
+
+1. **The business domain**, from the docs, the code and the product's public
+   website.
+2. **Subdomains**, classified core, supporting or generic, each with the
+   evidence for its type.
+3. **The context map**: bounded contexts, the subdomains they implement, the
+   external systems, and how they depend on each other (upstream and
+   downstream, ACL, OHS, shared kernel…), each relationship with the code
+   that proves it.
+4. **Inside each context**: its ubiquitous language, aggregates with their
+   invariants, entities and value objects with attributes and behaviour, use
+   cases (commands and queries), domain events, services and findings. Every
+   item links to its code.
+
+A glossary puts side by side the terms that mean different things in
+different contexts, and a search box finds any concept.
+
+**Only where there is DDD to read.** The scan first measures how much of the
+code uses DDD's own vocabulary (aggregate roots, value objects, domain
+events, domain folders). On a codebase with none, it stops and says so
+instead of inventing a model; ask again to map it anyway.
+
+**Large codebases.** It is built for several hundred thousand lines. A
+script inventories the code (size, churn, owners, schema, import graph,
+vocabulary) and cuts it into slices of about 15k lines; one subagent
+explores each slice and writes notes to disk; Claude merges the notes into
+the strategic design; one subagent per context writes its tactical model and
+checks it against the code. The script refuses a model that leaves source
+files outside every context or cites code that does not exist. Everything is
+kept in `.git/ddd-map/`, so an interrupted run resumes, and a re-run
+re-explores only the slices whose code changed.
+
+### Requirements
+
+- Python 3 and git
+- Claude Code with artifacts enabled (claude.ai login)
+
+### Usage
+
+```
+/clementbresson:ddd-map                  # the whole repository
+/clementbresson:ddd-map apps/api         # one part of it
 ```
 
 ---
