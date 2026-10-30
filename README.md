@@ -9,6 +9,7 @@ so every skill is called as `/clementbresson:<skill>`.
 | [`/clementbresson:branch-tour`](#branch-tour) | Walks through a finished branch as an interactive page |
 | [`/clementbresson:demo-video`](#demo-video) | Records a captioned demo video of a local web app |
 | [`/clementbresson:ddd-map`](#ddd-map) | Maps a codebase's domain (DDD) as an interactive page |
+| [`/clementbresson:backlog`](#backlog) | Keeps a repo-local backlog in `docs/todos/` |
 
 ## Install
 
@@ -209,6 +210,44 @@ re-explores only the slices whose code changed.
 ```
 /clementbresson:ddd-map                  # the whole repository
 /clementbresson:ddd-map apps/api         # one part of it
+```
+
+---
+
+## backlog
+
+Sets up a backlog that lives in the repo, as plain markdown in `docs/todos/`:
+
+1. **An index.** `TODO.md` lists every open ticket on one line, under CRITICAL,
+   HIGH, MODERATE or LOW, most urgent first. It is the only place that holds a
+   ticket's priority.
+2. **One file per ticket.** Problem, fix, and conditions anyone can check. Closing
+   a ticket deletes its file and its line, once those conditions are shown true.
+3. **Blocks.** All the tickets of one big thing carry the same tag, and the block
+   has one goal: the end state that says it is finished. Tickets keep their own
+   priorities, so `backlog.sh blocks` prints each block with its tickets.
+4. **References in no order.** `T-K7M2` instead of `T-025`, so parallel branches
+   can file tickets without clashing, and an id says nothing about age or priority.
+
+The plugin only creates the backlog and upgrades its rules. The rules
+(`TODO_RULES.md`), a small script (`backlog.sh`, with `id`, `check` and `blocks`)
+and a pointer in `CLAUDE.md` or `AGENTS.md` all live in the repo, so agents file
+tickets on their own and collaborators without the plugin lose nothing. Nothing
+forces `check` to run unless a team adds it to CI.
+
+A repo with an older `docs/todos/` keeps its tickets and numeric ids when migrated.
+
+### Requirements
+
+- `sh`, git and the usual `grep`, `sed` and `awk`
+
+### Usage
+
+```
+/clementbresson:backlog set up
+/clementbresson:backlog add a todo: the login page flashes
+/clementbresson:backlog what's next
+/clementbresson:backlog close T-K7M2
 ```
 
 ---

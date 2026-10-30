@@ -1,13 +1,13 @@
 {
   "name": "clementbresson",
   "displayName": "Clément Bresson",
-  "version": "0.7.0",
-  "description": "Clément Bresson's skills: PR reading order (pr-review), finished-branch walkthroughs (branch-tour), demo videos of a local web app (demo-video) and domain maps of a codebase (ddd-map)",
+  "version": "0.8.0",
+  "description": "Clément Bresson's skills: PR reading order (pr-review), finished-branch walkthroughs (branch-tour), demo videos of a local web app (demo-video), domain maps of a codebase (ddd-map) and a repo-local backlog (backlog)",
   "author": {
     "name": "Clément Bresson",
     "url": "https://clementbresson.com"
   },
   "repository": "https://github.com/clementbresson/claude-plugins",
   "license": "MIT",
-  "keywords": ["github", "git", "code-review", "pull-request", "diff", "walkthrough", "artifact", "demo", "video", "playwright", "ddd", "domain-driven-design", "architecture"]
+  "keywords": ["github", "git", "code-review", "pull-request", "diff", "walkthrough", "artifact", "demo", "video", "playwright", "ddd", "domain-driven-design", "architecture", "backlog", "todos"]
 }
