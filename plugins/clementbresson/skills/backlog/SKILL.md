@@ -1,7 +1,6 @@
 ---
 name: backlog
-description: Set up or work a repo-local backlog in docs/todos, a priority index plus one file per ticket, with blocks for related work.
-disable-model-invocation: true
+description: Use when you find a bug, debt or improvement you won't fix in the current change, when asked to add a todo or ticket, or when asked about priorities or what to do next. Files and works tickets in the repo's docs/todos backlog.
 argument-hint: "[set up | add ... | what's next | close T-K7M2 | upgrade]"
 ---
 
@@ -12,6 +11,8 @@ a repo cannot do alone: creating the backlog and upgrading its rules.
 
 The request is: $ARGUMENTS
 
+When you invoked this yourself, the request is your finding. Once it is filed, go back to the work you were doing.
+
 ## 1. Route
 
 From the repo root, find the state, then take the row that matches the state and the request.
@@ -20,6 +21,7 @@ From the repo root, find the state, then take the row that matches the state and
 |---|---|---|
 | No `docs/todos/` | set up | Bootstrap, then hand over |
 | No `docs/todos/` | add a ticket | Bootstrap, then step 3, then hand over |
+| No `docs/todos/` | a finding of your own | Create nothing. Name the finding in your final reply, and that `/clementbresson:backlog set up` starts a backlog |
 | No `docs/todos/` | anything else | Say there is no backlog, and stop |
 | `docs/todos/` without `backlog.sh` | set up | Migrate, then hand over |
 | `docs/todos/` without `backlog.sh` | anything else | Follow the rules already there, and say in one line that it is not migrated |
@@ -28,21 +30,22 @@ From the repo root, find the state, then take the row that matches the state and
 
 ## 2. Change the repo
 
-**Bootstrap.** Copy `${CLAUDE_SKILL_DIR}/template/TODO.md`, `TODO_RULES.md` and `backlog.sh` to `docs/todos/`, then
+**Bootstrap.** Copy `${CLAUDE_SKILL_DIR}/template/TODO.md`, `TODO_RULES.md`, `TEMPLATE.md` and `backlog.sh` to `docs/todos/`, then
 add the pointer.
 
 **Migrate.**
 1. Keep every ticket and id, and all local rule wording that still applies.
 2. Merge the template's sections into the existing rules.
-3. Copy `backlog.sh`, and make `TODO.md` follow the template, adding `## Blocks` last.
+3. Copy `backlog.sh` and `TEMPLATE.md`, and make `TODO.md` follow the template, adding `## Blocks` last.
 4. Compare each `**Priority:**` field with its ticket's index section, and name any disagreement in the hand-over.
    The index wins.
-5. Remove the fields: `perl -pi -e 's/^\*\*Priority:\*\* \w+ · //' docs/todos/T-*.md`.
+5. Turn each header into frontmatter:
+   `perl -0pi -e 's/\A(# .*\n)\n\*\*Priority:\*\* \w+ · \*\*Type:\*\* (\w+) · \*\*Found:\*\* (\S+)\n/---\ntype: $2\nfound: $3\n---\n\n$1/' docs/todos/T-*.md`.
 6. Create a block for each set of tickets that clearly serves one big thing, following the rules' Blocks section.
 7. Add or update the pointer.
 
 **Upgrade.** Diff the repo's `TODO_RULES.md` against the template, merge new rules by hand keeping local edits, and
-replace `backlog.sh`.
+replace `backlog.sh` and `TEMPLATE.md`. Tickets `check` rejects get the new format by hand.
 
 **Pointer.** Put it in whichever of CLAUDE.md or AGENTS.md holds the repo's real instructions. If CLAUDE.md only
 imports AGENTS.md, use AGENTS.md. If neither exists, create CLAUDE.md. The text, without the quote marks, as a bullet

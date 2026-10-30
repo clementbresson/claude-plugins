@@ -229,11 +229,16 @@ Sets up a backlog that lives in the repo, as plain markdown in `docs/todos/`:
 4. **References in no order.** `T-K7M2` instead of `T-025`, so parallel branches
    can file tickets without clashing, and an id says nothing about age or priority.
 
-The plugin only creates the backlog and upgrades its rules. The rules
-(`TODO_RULES.md`), a small script (`backlog.sh`, with `id`, `check` and `blocks`)
-and a pointer in `CLAUDE.md` or `AGENTS.md` all live in the repo, so agents file
-tickets on their own and collaborators without the plugin lose nothing. Nothing
+**Always the same format.** `backlog.sh new` creates each ticket from
+`TEMPLATE.md`, with its type and date in frontmatter, and `backlog.sh check` rejects
+a ticket or index line that strays from the format or keeps template text. Nothing
 forces `check` to run unless a team adds it to CI.
+
+**Agents use it on their own.** An agent that finds an issue it won't fix in the
+current change files a ticket. In a repo with no backlog it creates nothing and
+mentions the finding instead. The rules (`TODO_RULES.md`), the template, the script
+and a pointer in `CLAUDE.md` or `AGENTS.md` all live in the repo, so collaborators
+without the plugin get the same behaviour.
 
 A repo with an older `docs/todos/` keeps its tickets and numeric ids when migrated.
 

@@ -36,10 +36,11 @@ When you find an issue, debt or improvement, or are asked to add a ticket:
    the ticket says why. A large ticket is allowed only when no smaller step ships safely on its own, and the
    ticket says why. When one ticket should land first, the one that waits opens its Fix with
    `Land after T-XXXX: why.`
-4. **Get the id** with `sh docs/todos/backlog.sh id`. With no shell, pick 4 characters from
-   `23456789ABCDEFGHJKMNPQRSTVWXYZ`, at least one a letter, and confirm no file in the folder has them.
-5. **Write the ticket** from the template. Spend one quick pass locating the code. When the fix is not known, Fix
-   says `Unknown: first find X.`
+4. **Create the file** with `sh docs/todos/backlog.sh new short-slug`. With no shell, copy `TEMPLATE.md` to
+   `T-XXXX-short-slug.md`, picking 4 characters from `23456789ABCDEFGHJKMNPQRSTVWXYZ`, at least one a letter, that no
+   file in the folder has.
+5. **Fill in every part.** Keep the structure exact: one `type` value, and every heading as it stands. Spend one quick
+   pass locating the code. When the fix is not known, Fix says `Unknown: first find X.`
 6. **List it** in `TODO.md` under its priority, at its place by urgency, comparing index sentences only. Read
    `## Blocks` and tag the line when it fits one.
 
@@ -61,26 +62,6 @@ To change a priority, move the line and give the reason in the commit message. A
 table. Each named ticket goes to the level the user names, or one level in the direction they say, and to the top
 of that section; tickets landing in one section keep their index order. Only a user saying "critical" puts a ticket
 in CRITICAL: "more urgent" stops at the top of HIGH.
-
-## Template
-
-```markdown
-# T-XXXX The problem, stated as a sentence
-
-**Type:** bug | security | data | debt | improvement · **Found:** YYYY-MM-DD
-
-## Problem
-
-What is wrong, where (`path:line`, record ids), and the evidence (query, spec, log).
-
-## Fix
-
-The one change that closes it. Name the decision to take first when there is one.
-
-## Done when
-
-- [ ] A condition anyone can check.
-```
 
 ## Blocks
 

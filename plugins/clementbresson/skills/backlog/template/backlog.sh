@@ -1,6 +1,6 @@
 #!/bin/sh
 # Backlog helper. Needs sh, git and the usual grep, sed and awk.
-# Usage: sh docs/todos/backlog.sh id|check|blocks
+# Usage: sh docs/todos/backlog.sh id|new SLUG|check|blocks
 cd "$(dirname "$0")" || exit 2
 
 new_id() {
@@ -12,6 +12,13 @@ new_id() {
     esac
   do :; done
   echo "T-$id"
+}
+
+new_ticket() {
+  echo "$1" | grep -qE '^[a-z0-9-]+$' || { echo "usage: sh docs/todos/backlog.sh new short-lowercase-slug" >&2; exit 2; }
+  id=$(new_id)
+  sed "s/T-XXXX/$id/; s/^found: .*/found: $(date +%F)/" TEMPLATE.md > "$id-$1.md" || exit 2
+  echo "docs/todos/$id-$1.md"
 }
 
 # Everything TODO.md says about itself and about the files around it.
@@ -61,11 +68,17 @@ check_index() {
 }
 
 check_files() {
-  ls | grep -vE '^(T-([0-9]+|[2-9A-HJKMNP-TV-Z]{4})-[a-z0-9-]+\.md|TODO\.md|TODO_RULES\.md|backlog\.sh)$' |
+  ls | grep -vE '^(T-([0-9]+|[2-9A-HJKMNP-TV-Z]{4})-[a-z0-9-]+\.md|TODO\.md|TODO_RULES\.md|TEMPLATE\.md|backlog\.sh)$' |
     sed 's/$/: unexpected file. A ticket is T-XXXX-short-slug.md, with XXXX from the alphabet in TODO_RULES.md./'
   ls | grep -E '^T-.*\.md$' | while read -r f; do
     id=$(echo "$f" | cut -d- -f1-2)
-    head -1 "$f" | grep -q "^# $id " || echo "$f: first line must start with '# $id '"
+    sed -n 1p "$f" | grep -qx -- '---' && sed -n 4p "$f" | grep -qx -- '---' || echo "$f: frontmatter must be the first 4 lines, as in TEMPLATE.md."
+    sed -n 2p "$f" | grep -qE '^type: (bug|security|data|debt|improvement)$' || echo "$f: line 2 must be type: bug, security, data, debt or improvement."
+    sed -n 3p "$f" | grep -qE '^found: [0-9]{4}-[0-9]{2}-[0-9]{2}$' || echo "$f: line 3 must be found: YYYY-MM-DD."
+    sed -n 6p "$f" | grep -q "^# $id " || echo "$f: line 6 must start with '# $id '"
+    for p in 'The problem, stated as a sentence' 'What is wrong, where' 'The one change that closes it' 'A condition anyone can check'; do
+      grep -qF "$p" "$f" && echo "$f: template text left: $p"
+    done
     for s in Problem Fix 'Done when'; do
       grep -q "^## $s" "$f" || echo "$f: missing section ## $s"
     done
@@ -103,6 +116,7 @@ blocks() {
 case "$1" in
   id) new_id ;;
   check) ! check | grep . ;;
+  new) new_ticket "$2" ;;
   blocks) blocks ;;
-  *) echo "usage: sh docs/todos/backlog.sh id|check|blocks" >&2; exit 2 ;;
+  *) echo "usage: sh docs/todos/backlog.sh id|new SLUG|check|blocks" >&2; exit 2 ;;
 esac
