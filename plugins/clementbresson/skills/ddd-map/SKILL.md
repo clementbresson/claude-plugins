@@ -23,8 +23,9 @@ The work is split so it fits any size of codebase:
 - **Modelers**, one subagent per context, write each context's tactical
   model and check it against the code.
 
-Everything lives in a **workspace** outside the work tree
-(`<git dir>/ddd-map/<scope>/`): `inventory.json`, `brief.md`, `notes/`,
+Everything lives in a **workspace** in the main checkout
+(`.ddd-map/<scope>/`, which the script ignores locally through
+`.git/info/exclude`): `inventory.json`, `brief.md`, `notes/`,
 `areas/` (large codebases only), `model/domain.json`,
 `model/contexts/<id>.json`, `map.html`. It survives the
 session, so an interrupted analysis resumes where it stopped, and a re-run

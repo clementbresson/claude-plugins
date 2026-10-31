@@ -10,8 +10,9 @@
   build          validate the model and inject it into the page template
   remember URL   keep the published page's URL, so re-runs update the same artifact
 
-Everything lands in a workspace outside the work tree (<git dir>/ddd-map/<scope>),
-so a long analysis survives the session and a re-run reuses unchanged notes.
+Everything lands in a workspace in the main checkout (.ddd-map/<scope>), ignored
+through the repo's info/exclude, so a long analysis survives the session and a
+re-run reuses unchanged notes.
 """
 
 import argparse
@@ -142,6 +143,7 @@ PATTERNS = {"OHS", "PL", "ACL", "CF", "CS", "SK", "P", "SW"}
 SYMMETRIC = {"SK", "P", "SW"}
 ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 REF_RE = re.compile(r"^(.+?)(?::(\d+)(?:-(\d+))?)?$")
+EXCLUDE_LINE = "/.ddd-map/"
 
 
 def run(*args, cwd=None, timeout=120):
@@ -161,9 +163,28 @@ def slug(text):
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "root"
 
 
-def workspace(root, scope):
+def workspace_base(root):
     common = run("git", "rev-parse", "--git-common-dir", cwd=root)
-    base = (root / common.strip()).resolve() / "ddd-map" if common else root / ".ddd-map"
+    if not common:
+        return root / ".ddd-map"
+    common = (root / common.strip()).resolve()
+    # Linked worktrees share the main checkout's folder. A submodule's git dir
+    # (.git/modules/x) has no checkout next to it, so its folder stays in the submodule.
+    base = (common.parent if common.name == ".git" else root) / ".ddd-map"
+    legacy = common / "ddd-map"
+    if legacy.is_dir() and not base.exists():
+        legacy.rename(base)
+    exclude = common / "info" / "exclude"
+    text = read_text(exclude) or ""
+    if EXCLUDE_LINE not in text.splitlines():
+        exclude.parent.mkdir(exist_ok=True)
+        with exclude.open("a") as f:
+            f.write(("\n" if text and not text.endswith("\n") else "") + EXCLUDE_LINE + "\n")
+    return base
+
+
+def workspace(root, scope):
+    base = workspace_base(root)
     name = slug("+".join(sorted(scope))) if scope else "root"
     if len(name) > 48:
         name = f"{name[:36].rstrip('-')}-{hashlib.sha1(name.encode()).hexdigest()[:8]}"

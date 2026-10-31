@@ -198,8 +198,9 @@ explores each slice and writes notes to disk; Claude merges the notes into
 the strategic design; one subagent per context writes its tactical model and
 checks it against the code. The script refuses a model that leaves source
 files outside every context or cites code that does not exist. Everything is
-kept in `.git/ddd-map/`, so an interrupted run resumes, and a re-run
-re-explores only the slices whose code changed.
+kept in a locally ignored `.ddd-map/` folder in the main checkout, so an
+interrupted run resumes, and a re-run re-explores only the slices whose code
+changed.
 
 ### Requirements
 
