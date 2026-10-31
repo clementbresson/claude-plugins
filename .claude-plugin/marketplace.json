@@ -12,9 +12,9 @@
     {
       "name": "clementbresson",
       "source": "./plugins/clementbresson",
-      "description": "All my skills in one plugin. pr-review turns a pull request into a logical reading order inside GitHub; branch-tour walks through a finished branch as an interactive artifact; demo-video records a captioned demo video of a local web app; ddd-map maps a codebase's domain (subdomains, bounded contexts, aggregates) as an interactive page; backlog keeps a repo-local todo list in docs/todos, a priority index plus one file per ticket, with blocks for related work.",
+      "description": "All my skills in one plugin. pr-review turns a pull request into a logical reading order inside GitHub; branch-tour walks through a finished branch as an interactive artifact; demo-video records a captioned demo video of a local web app; ddd-map maps a codebase's domain (subdomains, bounded contexts, aggregates) as an interactive page; backlog keeps a repo-local todo list in docs/todos, a priority index plus one file per ticket, with blocks for related work; orca-new-task starts a task as a supervised Orca worker in its own worktree, which reports back to the agent in the main checkout.",
       "category": "code-review",
-      "tags": ["github", "git", "code-review", "pull-request", "walkthrough", "ddd", "backlog"]
+      "tags": ["github", "git", "code-review", "pull-request", "walkthrough", "ddd", "backlog", "orca", "orchestration"]
     }
   ]
 }

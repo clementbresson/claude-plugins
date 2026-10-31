@@ -10,6 +10,7 @@ so every skill is called as `/clementbresson:<skill>`.
 | [`/clementbresson:demo-video`](#demo-video) | Records a captioned demo video of a local web app |
 | [`/clementbresson:ddd-map`](#ddd-map) | Maps a codebase's domain (DDD) as an interactive page |
 | [`/clementbresson:backlog`](#backlog) | Keeps a repo-local backlog in `docs/todos/` |
+| [`/clementbresson:orca-new-task`](#orca-new-task) | Starts a task: a supervised Orca worker does it and reports back |
 
 ## Install
 
@@ -253,6 +254,43 @@ A repo with an older `docs/todos/` keeps its tickets and numeric ids when migrat
 /clementbresson:backlog add a todo: the login page flashes
 /clementbresson:backlog what's next
 /clementbresson:backlog close T-K7M2
+```
+
+---
+
+## orca-new-task
+
+Starts a new task. The agent in a repo's main checkout stays the orchestrator: it
+investigates, plans, reviews and relays, and never does the work itself.
+
+1. **A brief that stands alone.** Goal, done criteria, findings with `file:line`,
+   decisions, constraints, verification and what not to do, written to a file.
+2. **Your confirmation, every time.** One question per task, with the exact brief
+   in the preview. An approval covers that one start.
+3. **A worker in its own worktree.** A supervised Orca worker, always from the
+   freshly fetched default branch and never from a linked worktree. The new
+   worktree is revealed in the Orca app, as if you had created it there.
+4. **Reports while you keep talking.** The orchestrator waits in the background,
+   answers the worker's questions, checks its report and relays the outcome with
+   its evidence. You land the work.
+
+### Requirements
+
+- [Orca](https://github.com/stablyai/orca) running, with its `orca` CLI on `PATH`.
+  The skill refuses to start outside an Orca terminal or in a repo Orca doesn't manage
+- `bash`, git, and a repo whose `origin/HEAD` is set
+
+### Usage
+
+```
+/clementbresson:orca-new-task fix the flaky login test
+/clementbresson:orca-new-task in ../other-repo, bump the shared schema
+```
+
+Tests, using a stub `orca` and temporary git repos:
+
+```bash
+bash plugins/clementbresson/skills/orca-new-task/tests/start-task.test.sh
 ```
 
 ---
