@@ -1,8 +1,7 @@
 {
   "name": "clementbresson",
   "displayName": "Clément Bresson",
-  "version": "0.10.1",
-  "description": "Clément Bresson's skills: PR reading order (pr-review), finished-branch walkthroughs (branch-tour), demo videos of a local web app (demo-video), domain maps of a codebase (ddd-map), a repo-local backlog (backlog) and supervised Orca workers for new tasks (orca-new-task)",
+  "version": "0.11.0",
   "author": {
     "name": "Clément Bresson",
     "url": "https://clementbresson.com"

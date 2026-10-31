@@ -231,6 +231,17 @@ Sets up a backlog that lives in the repo, as plain markdown in `docs/todos/`:
 4. **References in no order.** `T-K7M2` instead of `T-025`, so parallel branches
    can file tickets without clashing, and an id says nothing about age or priority.
 
+**Work outside the code, in the same backlog.** A vendor dashboard, a production
+check or a decision is a ticket tagged `human`, in the same block as the code it
+belongs to, so a feature reads as one list and either side can wait on the other.
+Every ticket also has a `when`: `now`, `from` or `by` a date, or `after` or `before`
+a condition. `backlog.sh human` prints what a person can do today, what depends on a
+condition, and what is still waiting.
+
+**Slice it any way.** Tickets carry free tags in their frontmatter, and `backlog.sh
+list` combines priority, type, block and tags: `list debt critical`, or `list
+feature-x human` for what a person still owes on that feature.
+
 **Always the same format.** `backlog.sh new` creates each ticket from
 `TEMPLATE.md`, with its type and date in frontmatter, and `backlog.sh check` rejects
 a ticket or index line that strays from the format or keeps template text. Nothing
@@ -254,6 +265,8 @@ A repo with an older `docs/todos/` keeps its tickets and numeric ids when migrat
 /clementbresson:backlog set up
 /clementbresson:backlog add a todo: the login page flashes
 /clementbresson:backlog what's next
+/clementbresson:backlog what's on me
+/clementbresson:backlog what's critical in the technical debt
 /clementbresson:backlog close T-K7M2
 ```
 
