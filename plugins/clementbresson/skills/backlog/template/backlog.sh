@@ -1,6 +1,6 @@
 #!/bin/sh
 # Backlog helper. Needs sh, git and the usual grep, sed and awk.
-# Usage: sh docs/todos/backlog.sh id|new SLUG|check|blocks
+# Usage: sh docs/todos/backlog.sh id|new SLUG|check|list [TERM...]|blocks [NAME]|human|tags
 cd "$(dirname "$0")" || exit 2
 
 new_id() {
@@ -41,7 +41,7 @@ check_index() {
     /^[ \t]*[-*+] |\]\(T-/ {
       if (!h) problem("ticket line above the first heading. Move it under its priority.")
       if ($0 !~ /^- \[T-[0-9A-Z]+\]\(T-[0-9A-Z]+-[^)]*\.md\)( `[a-z0-9-]+`)? — .*[^` ]$/) {
-        problem("malformed line, want - [REF](FILE) `block` — Sentence.")
+        problem("malformed line, want - [REF](FILE) `block` — Sentence. The block is optional.")
         next
       }
       ref = $0; sub(/^- \[/, "", ref); sub(/\].*/, "", ref)
@@ -72,10 +72,12 @@ check_files() {
     sed 's/$/: unexpected file. A ticket is T-XXXX-short-slug.md, with XXXX from the alphabet in TODO_RULES.md./'
   ls | grep -E '^T-.*\.md$' | while read -r f; do
     id=$(echo "$f" | cut -d- -f1-2)
-    sed -n 1p "$f" | grep -qx -- '---' && sed -n 4p "$f" | grep -qx -- '---' || echo "$f: frontmatter must be the first 4 lines, as in TEMPLATE.md."
-    sed -n 2p "$f" | grep -qE '^type: (bug|security|data|debt|improvement)$' || echo "$f: line 2 must be type: bug, security, data, debt or improvement."
+    sed -n 1p "$f" | grep -qx -- '---' && sed -n 6p "$f" | grep -qx -- '---' || echo "$f: frontmatter must be the first 6 lines, as in TEMPLATE.md."
+    sed -n 2p "$f" | grep -qE '^type: (bug|security|data|debt|improvement|ops|decision)$' || echo "$f: line 2 must be type: bug, security, data, debt, improvement, ops or decision."
     sed -n 3p "$f" | grep -qE '^found: [0-9]{4}-[0-9]{2}-[0-9]{2}$' || echo "$f: line 3 must be found: YYYY-MM-DD."
-    sed -n 6p "$f" | grep -q "^# $id " || echo "$f: line 6 must start with '# $id '"
+    sed -n 4p "$f" | grep -qE '^when: (now|(from|by) [0-9]{4}-[0-9]{2}-[0-9]{2}|(after|before) .+)$' || echo "$f: line 4 must be when: now, from YYYY-MM-DD, by YYYY-MM-DD, after a condition or before a condition."
+    sed -n 5p "$f" | grep -qE '^tags: \[([a-z0-9][a-z0-9-]*(, [a-z0-9][a-z0-9-]*)*)?\]$' || echo "$f: line 5 must be tags: [] or tags: [human, other-tag], in lowercase kebab-case."
+    sed -n 8p "$f" | grep -q "^# $id " || echo "$f: line 8 must start with '# $id '"
     for p in 'The problem, stated as a sentence' 'What is wrong, where' 'The one change that closes it' 'A condition anyone can check'; do
       grep -qF "$p" "$f" && echo "$f: template text left: $p"
     done
@@ -95,28 +97,130 @@ check() {
   check_files
 }
 
-# Each block with its goal, then its tickets in index order.
+# Reads one index line and its ticket file. The awk programs below share this.
+ticket_awk='
+  function load_open_ids(    f, part) {
+    while (("ls" | getline f) > 0) if (f ~ /^T-.*\.md$/) { split(f, part, "-"); open_ids[part[1] "-" part[2]] = 1 }
+  }
+  function has_tag(t) { return index(" " tags " ", " " t " ") > 0 }
+  function read_ticket(    line, rest, id, in_fix, n) {
+    ref = $2; sub(/^\[/, "", ref); sub(/\].*/, "", ref)
+    file = $0; sub(/^[^(]*\(/, "", file); sub(/\).*/, "", file)
+    block = $3 ~ /^`/ ? $3 : ""; gsub(/`/, "", block)
+    sentence = substr($0, index($0, " — ") + length(" — "))
+    type = ""; when = ""; tags = ""; waits_on = ""; in_fix = 0; n = 0
+    while ((getline line < file) > 0) {
+      n++
+      if (n == 2) type = substr(line, 7)
+      if (n == 4) when = substr(line, 7)
+      if (n == 5) { tags = substr(line, 7); gsub(/[][,]/, "", tags) }
+      if (line ~ /^## /) in_fix = line ~ /^## Fix/
+      rest = line
+      while (in_fix && match(rest, /Land after T-[0-9A-Z]+/)) {
+        id = substr(rest, RSTART + length("Land after "), RLENGTH - length("Land after "))
+        if (id in open_ids) waits_on = waits_on (waits_on == "" ? "" : ", ") id
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+    }
+    close(file)
+  }
+  function describe() {
+    return section " " ref (block == "" ? "" : " `" block "`") (tags == "" ? "" : " [" tags "]") " — " sentence
+  }
+'
+
+# Tickets in index order that match every term: a priority, a type, a block, a tag, or none for no block.
+# Several priorities or several types match any of them.
+list() {
+  awk -v terms="$*" "$ticket_awk"'
+    BEGIN {
+      n = split(terms, term, " ")
+      split("critical high moderate low", known, " "); for (i in known) is_priority[known[i]] = 1
+      split("bug security data debt improvement ops decision", known, " "); for (i in known) is_type[known[i]] = 1
+      for (i = 1; i <= n; i++) {
+        if (term[i] in is_priority) want_priority[term[i]] = 1
+        else if (term[i] in is_type) want_type[term[i]] = 1
+        else other[term[i]] = 1
+      }
+    }
+    /^## / { section = substr($0, 4); next }
+    /^- \[T-/ && section != "Blocks" {
+      read_ticket()
+      ok = 1
+      for (t in other) {
+        hit = (t == "none" ? block == "" : t == block || has_tag(t))
+        if (hit) found[t] = 1; else ok = 0
+      }
+      for (t in want_priority) { any_priority = 1; break }
+      for (t in want_type) { any_type = 1; break }
+      if (any_priority && !(tolower(section) in want_priority)) ok = 0
+      if (any_type && !(type in want_type)) ok = 0
+      if (ok) { print describe() " [" when "]"; shown++ }
+    }
+    END {
+      for (t in other) if (!(t in found)) print "no ticket has the block or tag " t > "/dev/stderr"
+    }
+  ' TODO.md
+}
+
+# Each block with its goal, then its tickets in index order. A name shows one block.
 blocks() {
-  awk '
-    function after_dash(s) { return substr(s, index(s, " — ") + length(" — ")) }
+  awk -v only="$1" "$ticket_awk"'
     /^## / { section = substr($0, 4); next }
     section == "Blocks" {
-      if (/^- `/) { name = $2; gsub(/`/, "", name); order[++n] = name; goal[name] = after_dash($0) }
+      if (/^- `/) { name = $2; gsub(/`/, "", name); order[++n] = name; goal[name] = substr($0, index($0, " — ") + length(" — ")) }
       next
     }
-    /^- \[T-/ && $3 ~ /^`/ {
-      name = $3; gsub(/`/, "", name)
-      ref = $2; sub(/^\[/, "", ref); sub(/\].*/, "", ref)
-      members[name] = members[name] "  " section " " ref " " after_dash($0) "\n"
+    /^- \[T-/ {
+      read_ticket()
+      if (block == "") { unblocked++; next }
+      members[block] = members[block] "  " section " " ref (tags == "" ? "" : " [" tags "]") " " sentence "\n"
     }
-    END { for (i = 1; i <= n; i++) printf "%s: %s\n%s\n", order[i], goal[order[i]], members[order[i]] }
+    END {
+      for (i = 1; i <= n; i++)
+        if (only == "" || only == order[i]) printf "%s: %s\n%s\n", order[i], goal[order[i]], members[order[i]]
+      if (only == "") printf "no block: %d tickets. List them with: sh docs/todos/backlog.sh list none\n", unblocked
+    }
   ' TODO.md
+}
+
+# Human tickets in index order, split by whether a person can act on them today.
+human() {
+  awk -v today="$(date +%F)" "$ticket_awk"'
+    BEGIN { load_open_ids() }
+    /^## / { section = substr($0, 4); next }
+    /^- \[T-/ && section != "Blocks" {
+      read_ticket()
+      if (!has_tag("human")) next
+      date = substr(when, length(when) - 9)
+      if (waits_on != "") { group = 3; note = "land after " waits_on }
+      else if (when ~ /^from / && date > today) { group = 3; note = when }
+      else if (when ~ /^after /) { group = 2; note = when }
+      else if (when ~ /^by / && date < today) { group = 1; note = "OVERDUE, " when }
+      else { group = 1; note = when }
+      out[group] = out[group] "  " describe() " [" note "]\n"
+    }
+    END {
+      printf "Do now:\n%s", out[1]
+      printf "Do once its condition holds:\n%s", out[2]
+      printf "Waiting:\n%s", out[3]
+    }
+  ' TODO.md
+}
+
+# Every tag in use, most used first, so a new ticket reuses a word instead of inventing one.
+tags() {
+  ls | grep -E '^T-.*\.md$' | while read -r f; do sed -n 5p "$f"; done |
+    sed 's/^tags: //' | tr -d '[],' | tr ' ' '\n' | grep . | sort | uniq -c | sort -rn
 }
 
 case "$1" in
   id) new_id ;;
   check) ! check | grep . ;;
   new) new_ticket "$2" ;;
-  blocks) blocks ;;
-  *) echo "usage: sh docs/todos/backlog.sh id|new SLUG|check|blocks" >&2; exit 2 ;;
+  list) shift; list "$@" ;;
+  blocks) blocks "$2" ;;
+  human) human ;;
+  tags) tags ;;
+  *) echo "usage: sh docs/todos/backlog.sh id|new SLUG|check|list [TERM...]|blocks [NAME]|human|tags" >&2; exit 2 ;;
 esac
